@@ -1,0 +1,1414 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Djurbyggaren VR – stora rummet</title>
+<script src="https://aframe.io/releases/1.8.0/aframe.min.js"></script>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050b16;font-family:Arial,sans-serif}
+#overlay{position:fixed;z-index:20;left:14px;top:14px;display:flex;gap:8px;flex-wrap:wrap}
+button{border:0;border-radius:999px;padding:11px 17px;font-weight:900;color:#fff;background:linear-gradient(135deg,#7059ff,#a44cff);box-shadow:0 8px 24px #0009;cursor:pointer}
+button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
+#joinOverlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:#020713f2;color:white}
+#joinCard{width:min(470px,90vw);padding:25px;border-radius:24px;background:#0a1830;border:1px solid #52e7ff66;box-shadow:0 25px 90px #000}
+#joinCard h1{margin:0 0 7px;font-size:28px}
+#joinCard p{color:#bdcce0;line-height:1.45}
+#joinCard input{box-sizing:border-box;width:100%;padding:13px 15px;margin:6px 0;border-radius:12px;border:1px solid #63e6ff66;background:#061121;color:#fff;font-size:17px;text-transform:uppercase}
+#joinCard button{width:100%;margin-top:10px}
+#multiStatus{position:fixed;right:12px;top:12px;z-index:90;min-width:225px;padding:11px 14px;border-radius:14px;background:#061222e8;border:1px solid #5ee7ff55;color:white;font-weight:800;line-height:1.45}
+#multiStatus small{display:block;color:#75eaff;font-weight:700}
+#tip{position:fixed;z-index:20;left:50%;bottom:14px;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:#06101ee8;color:#fff;font-weight:800;text-align:center;max-width:92vw}
+</style>
+</head>
+<body>
+<div id="joinOverlay">
+  <div id="joinCard">
+    <h1>Djurbyggaren Multiplayer</h1>
+    <p>Öppna samma adress i båda headseten. Ange olika namn men samma rumskod. Den som lägger sista korrekta bokstaven får poängen.</p>
+    <input id="playerName" maxlength="12" value="SPELARE">
+    <input id="roomCode" maxlength="12" value="DJUR123">
+    <button id="joinButton">ANSLUT TILL RUM</button>
+  </div>
+</div>
+<div id="multiStatus">
+  <small id="connectionText">Inte ansluten</small>
+  <div id="scoreText">Väntar på spelare…</div>
+</div>
+<div id="overlay">
+  <button id="enterVr">STARTA VR</button>
+  <button id="resetBtn" class="alt">NYTT SPEL</button>
+</div>
+<div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. Använd endast TRIGGER för att ta och släppa kuber.</div>
+
+<a-scene id="scene" floating-cube-physics
+ renderer="antialias:true;colorManagement:true;physicallyCorrectLights:true"
+ background="color:#050b16"
+ xr-mode-ui="enabled:false"
+ webxr="optionalFeatures:local-floor,bounded-floor"
+ raycaster="objects:.interactable;far:2.1">
+
+ <a-entity light="type:ambient;color:#d8e7ff;intensity:.7"></a-entity>
+ <a-entity light="type:directional;color:#ffffff;intensity:1.05;castShadow:true" position="-6 10 4"></a-entity>
+ <a-entity light="type:point;color:#46e5ff;intensity:2.4;distance:24" position="0 4 0"></a-entity>
+ <a-entity light="type:point;color:#a667ff;intensity:2;distance:22" position="8 3 -8"></a-entity>
+ <a-entity light="type:point;color:#ff5caa;intensity:1.5;distance:20" position="-8 3 7"></a-entity>
+
+ <!-- 30 x 30 meter room -->
+ <a-plane position="0 0 0" rotation="-90 0 0" width="40" height="40"
+   material="color:#0d1d34;roughness:.78;metalness:.12" shadow="receive:true"></a-plane>
+ <a-plane position="0 10 -20" width="40" height="20" material="color:#09162a;roughness:.9"></a-plane>
+ <a-plane position="0 10 20" rotation="0 180 0" width="40" height="20" material="color:#09162a;roughness:.9"></a-plane>
+ <a-plane position="-20 10 0" rotation="0 90 0" width="40" height="20" material="color:#0a1930;roughness:.9"></a-plane>
+
+ <a-plane position="0 20 0" rotation="90 0 0" width="40" height="40" material="color:#081426;roughness:.92;metalness:.08;side:double"></a-plane>
+
+ <!-- Shared wall with a large doorway -->
+ <a-box position="20 10 -11.5" width=".25" height="20" depth="17"
+   material="color:#0b1b2f;roughness:.88;metalness:.12"></a-box>
+ <a-box position="20 10 11.5" width=".25" height="20" depth="17"
+   material="color:#0b1b2f;roughness:.88;metalness:.12"></a-box>
+ <a-box position="20 13.5 0" width=".25" height="13" depth="6"
+   material="color:#0b1b2f;roughness:.88;metalness:.12"></a-box>
+
+ <!-- Nature room, centered at x=42 -->
+ <a-plane position="42 0 0" rotation="-90 0 0" width="40" height="40"
+   material="color:#18351f;roughness:.92;metalness:.02" shadow="receive:true"></a-plane>
+ <a-plane position="42 10 -20" width="40" height="20"
+   material="color:#173122;roughness:.95"></a-plane>
+ <a-plane position="42 10 20" rotation="0 180 0" width="40" height="20"
+   material="color:#173122;roughness:.95"></a-plane>
+ <a-plane position="62 10 0" rotation="0 -90 0" width="40" height="20"
+   material="color:#142c1d;roughness:.95"></a-plane>
+ <a-plane position="42 20 0" rotation="90 0 0" width="40" height="40"
+   material="color:#10283b;roughness:.95;side:double"></a-plane>
+
+ <a-entity light="type:point;color:#8dff9d;intensity:2.1;distance:28" position="42 7 0"></a-entity>
+ <a-entity light="type:point;color:#ffe08b;intensity:1.3;distance:22" position="50 5 -9"></a-entity>
+
+ <a-ring position="0 .012 0" rotation="-90 0 0" radius-inner="3.4" radius-outer="3.46"
+   material="color:#42e7ff;emissive:#42e7ff;emissiveIntensity:2"></a-ring>
+ <a-ring position="0 .013 0" rotation="-90 0 0" radius-inner="8.5" radius-outer="8.57"
+   material="color:#9c67ff;emissive:#9c67ff;emissiveIntensity:1.5"></a-ring>
+ <a-ring position="0 .014 0" rotation="-90 0 0" radius-inner="13" radius-outer="13.06"
+   material="color:#ff5ba6;emissive:#ff5ba6;emissiveIntensity:1.1"></a-ring>
+
+ <a-entity id="game"></a-entity>
+
+ <a-entity id="rig" position="0 0 14.5" cube-watchdog xr-button-poller locomotion="speed:5.8;bounds:18.5">
+   <a-camera id="camera" position="0 1.65 0" look-controls="pointerLockEnabled:false" wasd-controls="acceleration:40">
+     <a-cursor fuse="false" raycaster="objects:.interactable;far:2.1"
+       geometry="primitive:ring;radiusInner:.004;radiusOuter:.009"
+       material="shader:flat;color:#fff"></a-cursor>
+   </a-camera>
+   <a-entity id="left" laser-controls="hand:left"
+     raycaster="objects:.interactable;far:2.1" line="color:#52e7ff;opacity:.9;lineWidth:2"
+     grabber></a-entity>
+   <a-entity id="right" laser-controls="hand:right"
+     raycaster="objects:.interactable;far:2.1" line="color:#d774ff;opacity:.95;lineWidth:2"
+     grabber></a-entity>
+ </a-entity>
+</a-scene>
+
+<script>
+const ANIMAL_WORDS=[
+  {sv:'ÄLG',en:'MOOSE'},
+  {sv:'RÄV',en:'FOX'},
+  {sv:'BJÖRN',en:'BEAR'},
+  {sv:'VARG',en:'WOLF'},
+  {sv:'HARE',en:'HARE'},
+  {sv:'SÄL',en:'SEAL'},
+  {sv:'ÖRN',en:'EAGLE'},
+  {sv:'UGGLA',en:'OWL'},
+  {sv:'KATT',en:'CAT'},
+  {sv:'HUND',en:'DOG'}
+];
+const NATURE_WORDS=[
+  {sv:'TRÄD',en:'TREE'},
+  {sv:'STEN',en:'STONE'},
+  {sv:'MOLN',en:'CLOUD'},
+  {sv:'REGN',en:'RAIN'},
+  {sv:'SNÖ',en:'SNOW'},
+  {sv:'SOL',en:'SUN'},
+  {sv:'HAV',en:'SEA'},
+  {sv:'ÄNG',en:'MEADOW'},
+  {sv:'BÄCK',en:'BROOK'},
+  {sv:'FJÄLL',en:'MOUNTAIN'}
+];
+const WORDS=[...ANIMAL_WORDS,...NATURE_WORDS];
+const ALPHABET='ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ';
+const COLORS=['#50ddff','#a66cff','#ff5ca5','#43d6a1','#ffd057','#4c84ff'];
+const scene=document.getElementById('scene');
+const game=document.getElementById('game');
+let state;
+let audioCtx=null;
+const multiplayer={
+  socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
+  scores:{},players:{},applying:false,reconnectTimer:null,intentionalClose:false
+};
+
+
+function cleanCode(value,fallback){
+  return (String(value||fallback).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,12)||fallback);
+}
+function renderMultiplayerStatus(){
+  const status=document.getElementById('connectionText');
+  const score=document.getElementById('scoreText');
+  if(status)status.textContent=multiplayer.connected
+    ?`Rum ${multiplayer.room} • ${Object.keys(multiplayer.players).length} spelare`
+    :'Inte ansluten';
+  if(score){
+    const rows=Object.entries(multiplayer.scores)
+      .map(([id,v])=>({id,name:(multiplayer.players[id]&&multiplayer.players[id].name)||v.name||'SPELARE',score:Number(v.score)||0}))
+      .sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name));
+    score.innerHTML=rows.length?rows.map((r,i)=>`${i+1}. ${r.name}: ${r.score}`).join('<br>'):'Väntar på spelare…';
+  }
+}
+function socketUrl(){
+  const protocol=location.protocol==='https:'?'wss:':'ws:';
+  return `${protocol}//${location.host}/ws/${encodeURIComponent(multiplayer.room)}?name=${encodeURIComponent(multiplayer.playerName)}`;
+}
+function connectMultiplayer(){
+  if(multiplayer.socket){multiplayer.intentionalClose=true;try{multiplayer.socket.close()}catch(e){}}
+  multiplayer.intentionalClose=false;
+  const ws=new WebSocket(socketUrl());
+  multiplayer.socket=ws;
+  document.getElementById('connectionText').textContent='Ansluter…';
+  ws.addEventListener('open',()=>{multiplayer.connected=true;document.getElementById('joinOverlay').style.display='none';renderMultiplayerStatus();sendGameState('join');});
+  ws.addEventListener('message',event=>{try{handleServerMessage(JSON.parse(event.data));}catch(error){console.error(error);}});
+  ws.addEventListener('close',()=>{multiplayer.connected=false;renderMultiplayerStatus();if(!multiplayer.intentionalClose){clearTimeout(multiplayer.reconnectTimer);multiplayer.reconnectTimer=setTimeout(connectMultiplayer,1800);}});
+}
+function currentNetworkState(){
+  return {
+    slots:state.slots.map(slot=>({wordkey:slot.dataset.wordkey,index:Number(slot.dataset.index),filled:slot.dataset.filled==='true',locked:slot.dataset.locked==='true',cube:slot.dataset.cube||''})),
+    complete:[...state.complete]
+  };
+}
+function sendMessage(message){
+  if(multiplayer.connected&&multiplayer.socket&&multiplayer.socket.readyState===WebSocket.OPEN){
+    multiplayer.socket.send(JSON.stringify(message));
+  }
+}
+function sendGameState(reason='update'){
+  if(!multiplayer.applying)sendMessage({type:'state',reason,state:currentNetworkState()});
+}
+function handleServerMessage(message){
+  if(message.type==='welcome'){
+    multiplayer.playerId=message.playerId;multiplayer.players=message.players||{};multiplayer.scores=message.scores||{};
+    renderMultiplayerStatus();if(message.state)applyAuthoritativeState(message.state);return;
+  }
+  if(message.type==='presence'){
+    multiplayer.players=message.players||{};multiplayer.scores=message.scores||multiplayer.scores;renderMultiplayerStatus();return;
+  }
+  if(message.type==='state'){
+    multiplayer.players=message.players||multiplayer.players;multiplayer.scores=message.scores||multiplayer.scores;
+    renderMultiplayerStatus();applyAuthoritativeState(message.state);return;
+  }
+  if(message.type==='reset'){
+    multiplayer.scores=message.scores||{};reset();renderMultiplayerStatus();
+  }
+}
+function applyAuthoritativeState(remoteState){
+  if(!remoteState||!state)return;
+  multiplayer.applying=true;
+  try{
+    state.slots.forEach(slot=>{
+      if(slot.dataset.filled==='true'){
+        const cube=cubeById(slot.dataset.cube);
+        if(cube&&cube!==state.held){game.object3D.attach(cube.object3D);cube.object3D.scale.set(1,1,1);setCubeState(cube,'loose');syncTransform(cube);}
+      }
+      slot.dataset.filled='false';slot.dataset.locked='false';delete slot.dataset.cube;setSlotVisual(slot,'incomplete');
+    });
+    (remoteState.slots||[]).forEach(item=>{
+      if(!item.filled)return;
+      const slot=state.slots.find(s=>s.dataset.wordkey===item.wordkey&&Number(s.dataset.index)===Number(item.index));
+      const cube=cubeById(item.cube);
+      if(!slot||!cube||cube===state.held)return;
+      slot.dataset.filled='true';slot.dataset.locked=item.locked?'true':'false';slot.dataset.cube=item.cube;
+      setCubeState(cube,'placed');game.object3D.attach(cube.object3D);
+      const wp=worldPos(slot),lp=game.object3D.worldToLocal(wp.clone());
+      const sq=slot.object3D.getWorldQuaternion(new THREE.Quaternion());
+      const pq=game.object3D.getWorldQuaternion(new THREE.Quaternion());
+      cube.object3D.position.copy(lp);cube.object3D.quaternion.copy(pq.invert().multiply(sq));cube.object3D.scale.set(.88,.88,.55);syncTransform(cube);
+    });
+    state.complete=new Set(remoteState.complete||[]);
+    [...new Set(state.slots.map(s=>s.dataset.wordkey))].forEach(key=>{
+      const slots=slotsForWord(key);
+      if(state.complete.has(key)){slots.forEach(s=>{s.dataset.locked='true';setSlotVisual(s,'correct');});}
+      else if(slots.every(s=>s.dataset.filled==='true'))setWordVisual(key,getWordAttempt(key)===slots[0].dataset.target?'correct':'wrong');
+      else setWordVisual(key,'incomplete');
+    });
+    updateStatus();
+  }finally{multiplayer.applying=false;}
+}
+
+function audio(){
+  if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  return audioCtx;
+}
+function tone(freq=440,dur=.09,type='sine',gain=.04,delay=0){
+  const a=audio(),o=a.createOscillator(),g=a.createGain();
+  o.type=type;o.frequency.setValueAtTime(freq,a.currentTime+delay);
+  g.gain.setValueAtTime(.0001,a.currentTime+delay);
+  g.gain.exponentialRampToValueAtTime(gain,a.currentTime+delay+.008);
+  g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+delay+dur);
+  o.connect(g).connect(a.destination);o.start(a.currentTime+delay);o.stop(a.currentTime+delay+dur+.03);
+}
+function sfx(kind){
+  if(kind==='grab'){tone(330,.07,'triangle');tone(500,.08,'sine',.025,.035)}
+  if(kind==='place'){tone(520,.08);tone(720,.12,'triangle',.04,.05)}
+  if(kind==='wrong'){tone(125,.18,'sawtooth',.022)}
+  if(kind==='word')[440,554,659,880].forEach((f,i)=>tone(f,.18,'triangle',.045,i*.08));
+  if(kind==='win')[392,494,587,784,988].forEach((f,i)=>tone(f,.32,'sine',.055,i*.11));
+}
+
+function makeCanvas(text,bg='#ffffff',fg='#142744',w=512,h=512,fontPx=300,sub=''){
+  const c=document.createElement('canvas');c.width=w;c.height=h;
+  const x=c.getContext('2d');
+  x.fillStyle=bg;x.fillRect(0,0,w,h);
+  x.strokeStyle='#ffffffaa';x.lineWidth=Math.max(8,w*.025);x.strokeRect(10,10,w-20,h-20);
+  x.textAlign='center';x.textBaseline='middle';
+  x.fillStyle=fg;x.font=`900 ${fontPx}px Arial, sans-serif`;
+  x.fillText(text,w/2,sub?h*.43:h*.53);
+  if(sub){
+    x.font=`800 ${Math.round(h*.14)}px Arial, sans-serif`;
+    x.fillStyle='#536887';x.fillText(sub,w/2,h*.78);
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.colorSpace=THREE.SRGBColorSpace;
+  t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
+  return t;
+}
+function applyTexture(el,tex){
+  const go=()=>{
+    const mesh=el.getObject3D('mesh');
+    if(mesh){mesh.material.map=tex;mesh.material.needsUpdate=true}
+  };
+  if(el.hasLoaded)go();else el.addEventListener('loaded',go,{once:true});
+}
+function planeLabel(textValue,pos,width,height,bg='#102743',fg='#fff',fontPx=120,rotation='0 0 0'){
+  const p=document.createElement('a-plane');
+  p.setAttribute('position',pos.join(' '));p.setAttribute('rotation',rotation);
+  p.setAttribute('width',width);p.setAttribute('height',height);
+  p.setAttribute('material','shader:flat;transparent:true');
+  applyTexture(p,makeCanvas(textValue,bg,fg,1024,256,fontPx));
+  return p;
+}
+function box(pos,scale,color='#173153'){
+  const e=document.createElement('a-box');
+  e.setAttribute('position',pos.join(' '));e.setAttribute('scale',scale.join(' '));
+  e.setAttribute('material',`color:${color};roughness:.48;metalness:.3`);
+  e.setAttribute('shadow','cast:true;receive:true');return e;
+}
+function shuffle(a){
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}
+  return a;
+}
+function roomSeed(text){
+  let h=2166136261;
+  for(const ch of String(text||'DJUR123')){
+    h^=ch.charCodeAt(0); h=Math.imul(h,16777619);
+  }
+  return h>>>0;
+}
+function seededShuffle(items,seedText){
+  const a=[...items]; let seed=roomSeed(seedText);
+  const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296;};
+  for(let i=a.length-1;i>0;i--){const j=Math.floor(random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return a;
+}
+
+function rand(min,max){return min+Math.random()*(max-min)}
+
+function addCubeFaces(cube,letter){
+  const tex=makeCanvas(letter,'#f8fbff','#102542',512,512,310);
+  const faces=[
+    ['0 0 .261','0 0 0'],['0 0 -.261','0 180 0'],
+    ['.261 0 0','0 90 0'],['-.261 0 0','0 -90 0'],
+    ['0 .261 0','-90 0 0']
+  ];
+  faces.forEach(([pos,rot])=>{
+    const p=document.createElement('a-plane');
+    p.setAttribute('width','.39');p.setAttribute('height','.39');
+    p.setAttribute('position',pos);p.setAttribute('rotation',rot);
+    p.setAttribute('material','shader:flat;side:double');
+    applyTexture(p,tex);cube.appendChild(p);
+  });
+}
+function cubeSpawn(index,total){
+  // The complete mixed letter pool is distributed across both rooms.
+  const roomCenter=(index%2===0)?0:42;
+  const localIndex=Math.floor(index/2);
+  const cols=5,rows=4,layers=3;
+  const col=localIndex%cols;
+  const row=Math.floor(localIndex/cols)%rows;
+  const layer=Math.floor(localIndex/(cols*rows))%layers;
+  return {
+    x:roomCenter-12+col*6+rand(-1.2,1.2),
+    y:2.0+layer*4.7+rand(-.8,.8),
+    z:-12+row*7.5+rand(-1.4,1.4),
+    kind:'floating'
+  };
+}
+
+function createHazardCube(index){
+  const e=document.createElement('a-box');
+  e.classList.add('hazardcube');
+  e.setAttribute('width','.62');
+  e.setAttribute('height','.62');
+  e.setAttribute('depth','.62');
+
+  const positions=[
+    [-7.5,3.4,-5.5],
+    [30.0,6.7,2.5],
+    [50.0,10.5,8.5]
+  ];
+  const p=positions[index%positions.length];
+  e.setAttribute('position',p.join(' '));
+  e.setAttribute('rotation',`${rand(-20,20)} ${rand(0,360)} ${rand(-20,20)}`);
+  e.setAttribute('material',
+    'color:#ff1f1f;emissive:#ff0000;emissiveIntensity:2.4;roughness:.22;metalness:.55');
+  e.setAttribute('shadow','cast:true');
+
+  const glow=document.createElement('a-sphere');
+  glow.setAttribute('radius','.55');
+  glow.setAttribute('material',
+    'color:#ff0000;emissive:#ff0000;emissiveIntensity:2;opacity:.18;transparent:true;side:double');
+  e.appendChild(glow);
+
+  game.appendChild(e);
+  state.hazards.push(e);
+  state.physics.set(e,{
+    velocity:new THREE.Vector3(rand(-1,1),rand(-.55,.55),rand(-1,1)).normalize().multiplyScalar(rand(.65,1.05)),
+    angular:new THREE.Vector3(rand(-.7,.7),rand(-.9,.9),rand(-.7,.7)),
+    phase:rand(0,Math.PI*2),
+    gust:rand(.7,1.3),
+    hazard:true
+  });
+}
+
+function createCube(letter,index,total){
+  const spawn=cubeSpawn(index,total);
+  const e=document.createElement('a-box');
+  e.classList.add('interactable','lettercube');
+  e.setAttribute('width','.5');e.setAttribute('height','.5');e.setAttribute('depth','.5');
+  e.setAttribute('position',`${spawn.x} ${spawn.y} ${spawn.z}`);
+  e.setAttribute('rotation',`${spawn.kind==='floor'?rand(-10,10):0} ${rand(-18,18)} ${spawn.kind==='floor'?rand(-10,10):0}`);
+  const color=COLORS[index%COLORS.length];
+  e.setAttribute('material',`color:${color};roughness:.28;metalness:.42;emissive:${color};emissiveIntensity:.13`);
+  e.setAttribute('shadow','cast:true;receive:true');
+  e.dataset.letter=letter;e.dataset.used='loose';e.dataset.id='cube'+index;
+  e.dataset.home=`${spawn.x},${spawn.y},${spawn.z}`;
+  addCubeFaces(e,letter);
+  e.addEventListener('mouseenter',()=>{if(e.dataset.used==='loose')e.setAttribute('scale','1.12 1.12 1.12')});
+  e.addEventListener('mouseleave',()=>{if(e.dataset.used==='loose')e.setAttribute('scale','1 1 1')});
+  e.addEventListener('click',()=>desktopGrab(e));
+    const dir=new THREE.Vector3(rand(-1,1),rand(-.35,.35),rand(-1,1)).normalize();
+  state.physics.set(e,{velocity:dir.multiplyScalar(rand(.65,1.15)),angular:new THREE.Vector3(rand(-.45,.45),rand(-.55,.55),rand(-.45,.45)),phase:rand(0,Math.PI*2),gust:rand(.6,1.4)});
+  game.appendChild(e);state.cubes.push(e);
+}
+
+function stationTransform(i,roomIndex){
+  const ang=(-140+i*(280/9))*Math.PI/180,r=12.8;
+  const centerX=roomIndex===0?0:42;
+  const x=centerX+Math.sin(ang)*r,z=Math.cos(ang)*r;
+  return {x,z,ry:Math.atan2(x-centerX,z)*180/Math.PI+180};
+}
+function createStation(entry,i,roomIndex){
+  const tr=stationTransform(i,roomIndex),root=document.createElement('a-entity');
+  const nature=roomIndex===1;
+  const wordKey=`${roomIndex}-${i}`;
+  const target=entry.en;
+  root.setAttribute('position',`${tr.x} 0 ${tr.z}`);
+  root.setAttribute('rotation',`0 ${tr.ry} 0`);
+
+  const w=Math.max(2.9,target.length*.58+1.2);
+  const baseColor=nature?'#183c25':'#112a49';
+
+  root.appendChild(box([0,1,0],[w,1.62,.55],baseColor));
+  root.appendChild(planeLabel(
+    entry.sv,[0,1.28,.3],Math.max(1.8,entry.sv.length*.58),.50,
+    '#f3f7ff','#142744',152
+  ));
+
+  const gap=.58,start=-(target.length-1)*gap/2;
+  [...target].forEach((_,j)=>{
+    const slot=document.createElement('a-box');
+    slot.classList.add('interactable','slot');
+    slot.setAttribute('position',`${start+j*gap} .48 .32`);
+    slot.setAttribute('width','.48');
+    slot.setAttribute('height','.48');
+    slot.setAttribute('depth','.18');
+    const defaultColor=nature?'#0b2011':'#071426';
+    const defaultEmissive=nature?'#285f32':'#1b385f';
+    slot.setAttribute('material',
+      `color:${defaultColor};roughness:.5;metalness:.12;emissive:${defaultEmissive};emissiveIntensity:.35`
+    );
+    slot.dataset.wordkey=wordKey;
+    slot.dataset.target=target;
+    slot.dataset.index=j;
+    slot.dataset.filled='false';
+    slot.dataset.locked='false';
+    slot.dataset.theme=nature?'nature':'animal';
+    slot.dataset.defaultColor=defaultColor;
+    slot.dataset.defaultEmissive=defaultEmissive;
+    slot.addEventListener('click',()=>desktopPlace(slot));
+    root.appendChild(slot);
+    state.slots.push(slot);
+  });
+  game.appendChild(root);
+}
+function createDecor(){
+  // Futuristic room corners and wall lights.
+  [[-19.5,-19.5],[-19.5,19.5],[19.5,-19.5],[19.5,19.5]].forEach(([x,z],i)=>{
+    const pillar=box([x,10,z],[.28,20,.28],i%2?'#253966':'#164d68');
+    pillar.setAttribute('material',`color:${i%2?'#253966':'#164d68'};emissive:${i%2?'#755cff':'#2ddfff'};emissiveIntensity:.35;metalness:.55`);
+    game.appendChild(pillar);
+  });
+  for(let i=-16;i<=16;i+=4){
+    game.appendChild(box([i,10,-19.82],[.08,18,.08],'#1b5874'));
+    game.appendChild(box([i,10,19.82],[.08,18,.08],'#3a2f67'));
+    game.appendChild(box([-19.82,10,i],[.08,18,.08],'#1b5874'));
+  }
+
+  game.appendChild(planeLabel('DJURRUMMET ZERO-G',[0,12.5,-19.75],10,1.4,'#0c1d35','#ffffff',104));
+  game.appendChild(planeLabel('SVENSKA SKYLTAR • ENGELSKA ORDBLOCK',[0,11.2,-19.74],11,.62,'#0c1d35','#59e6d4',66));
+
+  // Nature room: stylized trunks, canopies, rocks, and glowing vines.
+  for(let i=0;i<14;i++){
+    const ang=i/14*Math.PI*2;
+    const x=42+Math.sin(ang)*16.2;
+    const z=Math.cos(ang)*16.2;
+    const trunk=box([x,3,z],[.45,6,.45],'#4b301d');
+    trunk.setAttribute('material','color:#4b301d;roughness:1');
+    game.appendChild(trunk);
+
+    const crown=document.createElement('a-sphere');
+    crown.setAttribute('position',`${x} 6.4 ${z}`);
+    crown.setAttribute('radius',`${1.0+rand(0,.55)}`);
+    crown.setAttribute('material','color:#2c7138;emissive:#174823;emissiveIntensity:.25;roughness:.95');
+    game.appendChild(crown);
+  }
+
+  for(let i=0;i<18;i++){
+    const rock=document.createElement('a-dodecahedron');
+    rock.setAttribute('position',`${42+rand(-17,17)} ${rand(.25,.7)} ${rand(-17,17)}`);
+    rock.setAttribute('radius',`${rand(.25,.65)}`);
+    rock.setAttribute('material','color:#536254;roughness:1');
+    game.appendChild(rock);
+  }
+
+  game.appendChild(planeLabel('NATURRUMMET ZERO-G',[42,12.5,-19.75],10,1.4,'#173122','#e9ffe5',104));
+  game.appendChild(planeLabel('10 NATURORD • ENGLSKA ORDBLOCK I BÅDA RUMMEN',[42,11.2,-19.74],10,.62,'#173122','#aaff9b',70));
+
+  // Doorway frame and guiding lights.
+  game.appendChild(box([20,3.5,-3.15],[.35,7,.25],'#42d8ff'));
+  game.appendChild(box([20,3.5,3.15],[.35,7,.25],'#81ef81'));
+  game.appendChild(box([20,7,0],[.35,.25,6.5],'#d9ff78'));
+  game.appendChild(planeLabel('PASSAGE TILL NATURRUMMET',[19.82,8.15,0],5.6,.55,'#102743','#e8ff8b',72,'0 -90 0'));
+}
+function createHud(){
+  const hud=document.createElement('a-entity');hud.id='hud';hud.setAttribute('position','0 3.4 8.3');hud.setAttribute('rotation','0 180 0');
+  hud.appendChild(box([0,0,0],[5.7,1.25,.15],'#102743'));
+  hud.appendChild(planeLabel('20 ORD • ENGELSK TRÄNING',[0,.28,.09],4.6,.43,'#102743','#ffffff',112));
+  const status=planeLabel('0 / 20 KLARA',[0,-.18,.09],3.5,.38,'#102743','#58e4c9',112);status.id='statusPlane';hud.appendChild(status);
+  game.appendChild(hud);
+}
+
+function makeHudTexture(){
+  const c=document.createElement('canvas');c.width=1024;c.height=520;
+  const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);
+  x.textAlign='right';x.textBaseline='top';
+  x.font='800 72px Arial, sans-serif';
+
+  const sec=Math.floor((Date.now()-state.start)/1000);
+  const speed=(state.lastMeasuredSpeed||0).toFixed(1);
+  const lines=[
+    [`FART  ${speed} m/s`,'#6eeaff'],
+    [`TID   ${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`,'#ffffff'],
+    [`KLARA ${state.complete.size}`,'#61e3ba'],
+    [`KVAR  ${WORDS.length-state.complete.size}`,'#ffd45b'],
+    [`DU    ${((multiplayer.scores[multiplayer.playerId]||{}).score||0)} POÄNG`,'#ff9de1']
+  ];
+  lines.forEach(([textValue,color],i)=>{
+    x.fillStyle='rgba(0,0,0,.42)';
+    x.fillText(textValue,994,20+i*96);
+    x.fillStyle=color;
+    x.fillText(textValue,986,12+i*96);
+  });
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;return tex;
+}
+function createCornerHud(){
+  state.hudPlanes=[];
+  [
+    {pos:[8.5,16.0,-19.72],rot:'0 0 0'},
+    {pos:[50.5,16.0,-19.72],rot:'0 0 0'}
+  ].forEach((cfg,index)=>{
+    const plane=document.createElement('a-plane');
+    plane.id=`roomHud${index}`;
+    plane.setAttribute('position',cfg.pos.join(' '));
+    plane.setAttribute('rotation',cfg.rot);
+    plane.setAttribute('width','4.2');
+    plane.setAttribute('height','2.1');
+    plane.setAttribute('material','shader:flat;transparent:true;side:double');
+    game.appendChild(plane);
+    state.hudPlanes.push(plane);
+  });
+  refreshRoomHuds();
+}
+function refreshRoomHuds(){
+  if(!state||!state.hudPlanes)return;
+  state.hudPlanes.forEach(plane=>applyTexture(plane,makeHudTexture()));
+}
+
+function updateStatus(){
+  if(!state)return;
+  const now=performance.now();
+  const rigEl=document.getElementById('rig');
+  const rig=rigEl?rigEl.object3D:null;
+
+  if(rig){
+    if(!state.lastPlayerPos){
+      state.lastPlayerPos=rig.position.clone();
+      state.lastSpeedTime=now;
+      state.lastMeasuredSpeed=0;
+    }else{
+      const elapsed=Math.max(.001,(now-state.lastSpeedTime)/1000);
+      const delta=rig.position.clone().sub(state.lastPlayerPos);
+      const horizontal=Math.hypot(delta.x,delta.z)/elapsed;
+      state.lastMeasuredSpeed=Math.sqrt(horizontal*horizontal+(state.verticalVelocity||0)**2);
+      state.lastPlayerPos.copy(rig.position);
+      state.lastSpeedTime=now;
+    }
+  }
+
+  refreshRoomHuds();
+
+  const loose=state.cubes.filter(c=>c.dataset.used==='loose'||c.dataset.used==='held').length;
+  if(!state.gameOver)document.getElementById('tip').textContent=
+    `${state.complete.size}/20 klara • ${loose} flytande bokstavskuber • svenska skyltar, engelska ord`;
+}
+function worldPos(el){const v=new THREE.Vector3();el.object3D.getWorldPosition(v);return v}
+function nearestSlot(pos,max=.8){
+  let best=null,d=max;
+  state.slots.forEach(s=>{
+    if(s.dataset.filled==='true')return;
+    const n=worldPos(s).distanceTo(pos);if(n<d){d=n;best=s}
+  });return best;
+}
+function syncTransform(el){
+  const p=el.object3D.position,r=el.object3D.rotation,s=el.object3D.scale;
+  el.setAttribute('position',{x:p.x,y:p.y,z:p.z});
+  el.setAttribute('rotation',{x:THREE.MathUtils.radToDeg(r.x),y:THREE.MathUtils.radToDeg(r.y),z:THREE.MathUtils.radToDeg(r.z)});
+  el.setAttribute('scale',{x:s.x,y:s.y,z:s.z});
+}
+function setCubeState(cube,next){
+  cube.dataset.used=next;
+  if(next==='loose')cube.classList.add('interactable');
+  else cube.classList.remove('interactable');
+}
+
+function slotsForWord(wordKey){
+  return state.slots
+    .filter(slot=>slot.dataset.wordkey===wordKey)
+    .sort((a,b)=>Number(a.dataset.index)-Number(b.dataset.index));
+}
+function cubeById(id){
+  return state.cubes.find(c=>c.dataset.id===id) || null;
+}
+function setSlotVisual(slot,mode){
+  const defaultColor=slot.dataset.defaultColor||'#071426';
+  const defaultEmissive=slot.dataset.defaultEmissive||'#1b385f';
+  if(mode==='correct'){
+    slot.setAttribute('material','color:#11422b;roughness:.4;metalness:.18;emissive:#4cff9e;emissiveIntensity:.9');
+  }else if(mode==='wrong'){
+    slot.setAttribute('material','color:#4a1717;roughness:.45;metalness:.15;emissive:#ff5757;emissiveIntensity:.9');
+  }else{
+    slot.setAttribute('material',
+      `color:${defaultColor};roughness:.5;metalness:.12;emissive:${defaultEmissive};emissiveIntensity:.35`);
+  }
+}
+function setWordVisual(wordKey,mode){
+  slotsForWord(wordKey).forEach(slot=>setSlotVisual(slot,mode));
+}
+function getWordAttempt(wordKey){
+  return slotsForWord(wordKey).map(slot=>{
+    if(slot.dataset.filled!=='true')return '';
+    const cube=cubeById(slot.dataset.cube);
+    return cube?cube.dataset.letter:'';
+  }).join('');
+}
+function pickupPlacedCube(slot,holder){
+  if(!slot||slot.dataset.filled!=='true'||slot.dataset.locked==='true'||state.held)return false;
+  const cube=cubeById(slot.dataset.cube);
+  if(!cube)return false;
+
+  // Free the slot first and reset the whole word visual.
+  slot.dataset.filled='false';
+  delete slot.dataset.cube;
+  setWordVisual(slot.dataset.wordkey,'incomplete');
+
+  // Put cube back into the world with a clean transform/state.
+  game.object3D.attach(cube.object3D);
+  cube.object3D.scale.set(1,1,1);
+  cube.object3D.rotation.set(0,0,0);
+  syncTransform(cube);
+  setCubeState(cube,'loose');
+
+  if(holder==='desktop'){
+    state.held=cube;
+    state.heldBy='desktop';
+    setCubeState(cube,'held');
+    cube.object3D.scale.set(1.24,1.24,1.24);
+    syncTransform(cube);
+    sfx('grab');
+  }else{
+    // Manually attach so retrieval works even though the cube was just "placed".
+    state.held=cube;
+    state.heldBy=holder;
+    setCubeState(cube,'held');
+    holder.object3D.attach(cube.object3D);
+    cube.object3D.position.set(0,-.025,-.16);
+    cube.object3D.rotation.set(0,0,0);
+    cube.object3D.scale.set(1.02,1.02,1.02);
+    syncTransform(cube);
+    sfx('grab');
+  }
+
+  updateStatus();
+  sendGameState('remove');
+  return true;
+}
+function nearbyFilledSlot(hand,maxDistance=.86){
+  const hp=worldPos(hand);
+  let best=null,bestDistance=maxDistance;
+  state.slots.forEach(slot=>{
+    if(slot.dataset.filled!=='true'||slot.dataset.locked==='true')return;
+    const d=worldPos(slot).distanceTo(hp);
+    if(d<bestDistance){bestDistance=d;best=slot}
+  });
+  return best;
+}
+
+function closestSlot(pos,maxDistance=.78){
+  let best=null,bestDistance=maxDistance;
+  state.slots.forEach(slot=>{
+    if(slot.dataset.filled==='true' || slot.dataset.locked==='true')return;
+    const d=worldPos(slot).distanceTo(pos);
+    if(d<bestDistance){bestDistance=d;best=slot}
+  });
+  return best;
+}
+function attachCube(cube,hand){
+  if(state.held||!cube||cube.dataset.used!=='loose')return false;
+  cube.removeAttribute('animation__return');
+  cube.removeAttribute('animation__celebrate');
+  state.held=cube;
+  state.heldBy=hand;
+  setCubeState(cube,'held');
+  hand.object3D.attach(cube.object3D);
+  cube.object3D.position.set(0,-.025,-.16);
+  cube.object3D.rotation.set(0,0,0);
+  cube.object3D.scale.set(1.02,1.02,1.02);
+  syncTransform(cube);
+  sfx('grab');
+  return true;
+}
+function freeDrop(cube){
+  game.object3D.attach(cube.object3D);
+  cube.object3D.position.y=Math.max(.27,Math.min(2.0,cube.object3D.position.y));
+  cube.object3D.scale.set(1,1,1);
+  setCubeState(cube,'loose');
+  syncTransform(cube);
+  cube.dataset.home=`${cube.object3D.position.x},${cube.object3D.position.y},${cube.object3D.position.z}`;
+  sfx('place');
+}
+function releaseCube(forceDrop=false){
+  const cube=state.held;
+  if(!cube)return false;
+
+  state.held=null;
+  state.heldBy=null;
+
+  const wp=worldPos(cube);
+  game.object3D.attach(cube.object3D);
+  cube.object3D.scale.set(1,1,1);
+
+  const openSlot=forceDrop ? null : closestSlot(wp,.96);
+  if(openSlot && placeCube(cube,openSlot))return true;
+
+  freeDrop(cube);
+  return true;
+}
+function returnHome(cube,wrong=false){
+  if(!cube)return;
+  game.object3D.attach(cube.object3D);
+  setCubeState(cube,'loose');
+  const h=cube.dataset.home.split(',').map(Number);
+  cube.object3D.position.set(h[0],h[1],h[2]);
+  cube.object3D.scale.set(1,1,1);
+  syncTransform(cube);
+  if(wrong)sfx('wrong');
+}
+function placeCube(cube,slot){
+  if(!cube||!slot||slot.dataset.filled==='true'||slot.dataset.locked==='true')return false;
+  if(cube.dataset.used==='placed')return false;
+
+  slot.dataset.filled='true';
+  slot.dataset.cube=cube.dataset.id;
+  setCubeState(cube,'placed');
+  cube.removeAttribute('animation__return');
+  cube.removeAttribute('animation__celebrate');
+  game.object3D.attach(cube.object3D);
+
+  const worldPosition=worldPos(slot);
+  const localPosition=game.object3D.worldToLocal(worldPosition.clone());
+  const slotWorldQ=slot.object3D.getWorldQuaternion(new THREE.Quaternion());
+  const parentWorldQ=game.object3D.getWorldQuaternion(new THREE.Quaternion());
+  const localQ=parentWorldQ.invert().multiply(slotWorldQ);
+
+  cube.object3D.position.copy(localPosition);
+  cube.object3D.quaternion.copy(localQ);
+  cube.object3D.scale.set(.88,.88,.55);
+  syncTransform(cube);
+
+  sfx('place');
+  checkWord(slot.dataset.wordkey);
+  updateStatus();
+  sendGameState('place');
+  return true;
+}
+
+function fireworkAt(position,color='#59e6ff'){
+  const count=28;
+  for(let i=0;i<count;i++){
+    const p=document.createElement('a-sphere');
+    p.setAttribute('radius','.035');
+    p.setAttribute('position',`${position.x} ${position.y} ${position.z}`);
+    p.setAttribute('material',`color:${color};emissive:${color};emissiveIntensity:2.4;shader:flat`);
+    game.appendChild(p);
+
+    const dir=new THREE.Vector3(rand(-1,1),rand(-.2,1.2),rand(-1,1)).normalize();
+    const dist=rand(.8,2.3);
+    const end=position.clone().add(dir.multiplyScalar(dist));
+    p.setAttribute('animation__move',
+      `property:position;to:${end.x} ${end.y} ${end.z};dur:${rand(650,1100)};easing:easeOutQuad`);
+    p.setAttribute('animation__fade',
+      `property:material.opacity;from:1;to:0;dur:${rand(700,1150)};easing:linear`);
+    setTimeout(()=>p.remove(),1300);
+  }
+  [640,820,1040].forEach((f,i)=>tone(f,.18,'triangle',.05,i*.06));
+}
+
+const GO_FONT={
+ G:["111","100","101","101","111"], A:["010","101","111","101","101"],
+ M:["10001","11011","10101","10001","10001"], E:["111","100","110","100","111"],
+ O:["111","101","101","101","111"], V:["101","101","101","101","010"],
+ R:["110","101","110","101","101"]
+};
+function buildCubeWord(parent,textValue){
+  const gap=.155,size=.125;
+  const widths=[...textValue].map(ch=>ch===' '?2:(GO_FONT[ch]?.[0].length||3));
+  let cursor=-(widths.reduce((a,b)=>a+b,0)+textValue.length-1)*gap/2;
+  [...textValue].forEach((ch,ci)=>{
+    if(ch===' '){cursor+=(widths[ci]+1)*gap;return}
+    (GO_FONT[ch]||[]).forEach((row,y)=>{
+      [...row].forEach((bit,x)=>{
+        if(bit!=='1')return;
+        const cube=document.createElement('a-box');
+        cube.setAttribute('width',size); cube.setAttribute('height',size); cube.setAttribute('depth',size);
+        cube.setAttribute('position',`${cursor+x*gap} ${(2-y)*gap+.38} 0`);
+        cube.setAttribute('material','color:#ff2525;emissive:#ff0000;emissiveIntensity:2.8;roughness:.25;metalness:.45');
+        parent.appendChild(cube);
+      });
+    });
+    cursor+=(widths[ci]+1)*gap;
+  });
+}
+function showGameOver(){
+  if(state.gameOverRoot)return;
+  const root=document.createElement('a-entity');
+  root.id='gameOverRoot';
+  root.setAttribute('position','0 0 -1.55');
+  buildCubeWord(root,'GAME OVER');
+
+  const restart=document.createElement('a-box');
+  restart.classList.add('interactable','restartButton');
+  restart.setAttribute('position','0 -.72 0');
+  restart.setAttribute('width','1.55');restart.setAttribute('height','.42');restart.setAttribute('depth','.16');
+  restart.setAttribute('material','color:#18b991;emissive:#13e7b1;emissiveIntensity:.8');
+  restart.addEventListener('click',reset);
+  restart.appendChild(planeLabel('RESTART',[0,0,.085],1.25,.25,'#18b991','#ffffff',145));
+  root.appendChild(restart);
+
+  document.getElementById('camera').appendChild(root);
+  state.gameOverRoot=root;
+  state.restartButton=restart;
+}
+
+function triggerGameOver(reason='FARA'){
+  if(state.gameOver)return;
+  state.gameOver=true;
+  state.paused=true;
+  state.jetpack=false;
+  state.verticalVelocity=0;
+  stopJetSound();
+  if(state.held)releaseCube(true);
+  state.projectiles.forEach(p=>p.el?.remove());
+  state.projectiles.length=0;
+  [110,92,73].forEach((f,i)=>tone(f,.4,'sawtooth',.06,i*.14));
+  document.getElementById('tip').textContent=`GAME OVER — ${reason}`;
+  showGameOver();
+}
+function playerWorldPosition(){
+  const v=new THREE.Vector3();
+  document.getElementById('camera').object3D.getWorldPosition(v);
+  return v;
+}
+function checkHazardTouch(){
+  if(!state||state.gameOver||state.paused)return;
+  const points=[
+    playerWorldPosition(),
+    worldPos(document.getElementById('left')),
+    worldPos(document.getElementById('right'))
+  ];
+  const lethalCenterDistance=.32;
+  for(const hazard of state.hazards){
+    const hp=worldPos(hazard);
+    if(points.some(p=>p.distanceTo(hp)<lethalCenterDistance)){
+      triggerGameOver('RÖD KUB');
+      return;
+    }
+  }
+}
+
+function checkWord(wordKey){
+  const slots=slotsForWord(wordKey);
+  if(!slots.length)return;
+  const isFull=slots.every(slot=>slot.dataset.filled==='true');
+
+  if(!isFull){
+    setWordVisual(wordKey,'incomplete');
+    return;
+  }
+
+  const attempt=getWordAttempt(wordKey);
+  const target=slots[0].dataset.target;
+
+  if(attempt===target){
+    if(!state.complete.has(wordKey)){
+      state.complete.add(wordKey);
+      setWordVisual(wordKey,'correct');
+      slots.forEach(slot=>slot.dataset.locked='true');
+      sfx('word');
+
+      const center=new THREE.Vector3();
+      slots.forEach(slot=>center.add(worldPos(slot)));
+      center.multiplyScalar(1/slots.length);
+      fireworkAt(center,COLORS[state.complete.size%COLORS.length]);
+
+      slots.forEach((slot,i)=>setTimeout(()=>{
+        const cube=cubeById(slot.dataset.cube);
+        if(cube){
+          cube.setAttribute('animation__celebrate',
+            'property:scale;from:.88 .88 .55;to:1.12 1.12 .7;dir:alternate;loop:2;dur:150;easing:easeOutQuad');
+        }
+      },i*55));
+
+      if(state.complete.size===WORDS.length){
+        sfx('win');
+        document.getElementById('tip').textContent='ALLA 20 ORD ÄR KLARA!';
+      }
+    }
+  }else{
+    setWordVisual(wordKey,'wrong');
+    sfx('wrong');
+  }
+}
+function desktopGrab(cube){
+  if(!cube||cube.dataset.used!=='loose')return;
+  if(state.held&&state.heldBy==='desktop'){
+    freeDrop(state.held);state.held=null;state.heldBy=null;return;
+  }
+  state.held=cube;state.heldBy='desktop';setCubeState(cube,'held');
+  cube.object3D.scale.set(1.24,1.24,1.24);syncTransform(cube);sfx('grab');
+}
+function desktopPlace(slot){
+  if(!slot)return;
+  if(slot.dataset.filled==='true' && slot.dataset.locked!=='true' && !state.held){
+    pickupPlacedCube(slot,'desktop');
+    return;
+  }
+  if(!state.held||state.heldBy!=='desktop'||slot.dataset.filled==='true'||slot.dataset.locked==='true')return;
+  placeCube(state.held,slot);
+}
+function nearbyCube(hand,maxDistance=.82){
+  const hp=worldPos(hand);
+  let best=null,bestDistance=maxDistance;
+  state.cubes.forEach(cube=>{
+    if(cube.dataset.used!=='loose')return;
+    const d=worldPos(cube).distanceTo(hp);
+    if(d<bestDistance){bestDistance=d;best=cube}
+  });
+  return best;
+}
+
+
+
+let jetNoise=null;
+function startJetSound(){
+  if(jetNoise||state.gameOver)return;
+  const a=audio();
+  const buffer=a.createBuffer(1,a.sampleRate*2,a.sampleRate);
+  const data=buffer.getChannelData(0);
+  for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;
+  const source=a.createBufferSource();source.buffer=buffer;source.loop=true;
+  const filter=a.createBiquadFilter();filter.type='bandpass';filter.frequency.value=900;filter.Q.value=.75;
+  const gain=a.createGain();gain.gain.value=.0001;
+  source.connect(filter).connect(gain).connect(a.destination);
+  gain.gain.exponentialRampToValueAtTime(.05,a.currentTime+.08);
+  source.start();
+  jetNoise={source,gain};
+}
+function stopJetSound(){
+  if(!jetNoise)return;
+  const current=jetNoise;
+  const a=audio();
+  current.gain.gain.cancelScheduledValues(a.currentTime);
+  current.gain.gain.setValueAtTime(Math.max(.0001,current.gain.gain.value),a.currentTime);
+  current.gain.gain.exponentialRampToValueAtTime(.0001,a.currentTime+.10);
+  setTimeout(()=>{try{current.source.stop()}catch(e){}},130);
+  jetNoise=null;
+}
+
+function shootBall(hand){
+  if(!state||state.gameOver)return;
+
+  const rayComp=hand.components?.raycaster;
+  if(!rayComp||!rayComp.raycaster)return;
+
+  const ray=rayComp.raycaster.ray;
+  const origin=ray.origin.clone();
+  const direction=ray.direction.clone().normalize();
+
+  const ball=document.createElement('a-sphere');
+  ball.setAttribute('radius','.075');
+  ball.setAttribute('material',
+    'color:#ffffff;emissive:#59e6ff;emissiveIntensity:3;shader:flat');
+  game.appendChild(ball);
+
+  // Spawn exactly on the visible pointer ray, slightly ahead of the controller.
+  ball.object3D.position.copy(origin.clone().addScaledVector(direction,.28));
+  state.projectiles.push({
+    el:ball,
+    velocity:direction.multiplyScalar(12.5),
+    life:2.8
+  });
+  tone(980,.065,'square',.038);
+}
+function updateProjectiles(sec){
+  if(!state||!state.projectiles||state.paused)return;
+  for(let i=state.projectiles.length-1;i>=0;i--){
+    const shot=state.projectiles[i];
+    shot.life-=sec;
+    shot.el.object3D.position.addScaledVector(shot.velocity,sec);
+
+    let hit=false;
+    for(const cube of state.cubes){
+      if(cube.dataset.used!=='loose')continue;
+      if(worldPos(shot.el).distanceTo(worldPos(cube))<.42){
+        const phys=state.physics.get(cube);
+        if(phys){
+          const hitDirection=shot.velocity.clone().normalize();
+          phys.velocity.add(hitDirection.multiplyScalar(4.0));
+          phys.velocity.setLength(Math.min(5.0,Math.max(1.8,phys.velocity.length())));
+          phys.angular.add(new THREE.Vector3(
+            rand(-2.4,2.4),rand(-3.0,3.0),rand(-2.4,2.4)
+          ));
+        }
+        tone(360,.065,'triangle',.035);
+        hit=true;
+        break;
+      }
+    }
+
+    if(hit||shot.life<=0){
+      shot.el.remove();
+      state.projectiles.splice(i,1);
+    }
+  }
+}
+
+AFRAME.registerComponent('grabber',{
+  init(){
+    const act=()=>{
+      // Restart remains usable while the game is paused.
+      if(state&&state.gameOver&&state.restartButton){
+        const rc=this.el.components&&this.el.components.raycaster;
+        const hit=rc?rc.getIntersection(state.restartButton):null;
+        if(hit){reset();return}
+      }
+      if(!state||state.paused)return;
+      if(state.held){releaseCube(false);return}
+      const filledSlot=nearbyFilledSlot(this.el);
+      if(filledSlot){pickupPlacedCube(filledSlot,this.el);return}
+      const cube=nearbyCube(this.el);
+      if(cube)attachCube(cube,this.el);
+      else sfx('wrong');
+    };
+    const emergency=()=>{if(state.held)releaseCube(true)};
+    this.el.addEventListener('triggerdown',act);
+    this.el.addEventListener('abuttondown',()=>shootBall(this.el));
+    // Event handlers give immediate response; XR polling below guarantees
+    // repeatable start/stop even if the headset misses xbuttonup.
+    this.el.addEventListener('xbuttondown',()=>{
+      if(state.gameOver)return;
+      state.jetpack=true;
+      startJetSound();
+    });
+    this.el.addEventListener('xbuttonup',()=>{
+      state.jetpack=false;
+      stopJetSound();
+    });
+    this.el.addEventListener('bbuttondown',emergency);
+    this.el.addEventListener('ybuttondown',emergency);
+    this.el.addEventListener('thumbstickdown',emergency);
+  }
+});
+
+
+function stepZeroGPhysics(time,dtMs){
+  if(!state||!state.physics||state.paused)return;
+  const sec=Math.min(.04,Math.max(.001,(dtMs||16)/1000));
+  const bodies=[...state.cubes,...state.hazards];
+  const minX=-19.1,maxX=61.1,minY=.32,maxY=19.1,minZ=-19.1,maxZ=19.1;
+
+  for(const body of bodies){
+    const phys=state.physics.get(body);
+    if(!phys)continue;
+    if(!phys.hazard && body.dataset.used!=='loose')continue;
+
+    const t=time*.00018;
+    const wind=new THREE.Vector3(
+      Math.sin(t+phys.phase)*.075+Math.cos(t*.67+phys.phase*1.7)*.035,
+      Math.sin(t*.83+phys.phase*.8)*.025,
+      Math.cos(t*.72+phys.phase*1.3)*.075+Math.sin(t*.51+phys.phase*.4)*.035
+    ).multiplyScalar(phys.gust);
+
+    phys.velocity.addScaledVector(wind,sec);
+    phys.velocity.multiplyScalar(Math.pow(.994,sec*60));
+
+    const minSpeed=phys.hazard?.58:.48;
+    const maxSpeed=phys.hazard?1.65:1.4;
+    const speed=phys.velocity.length();
+    if(speed<minSpeed)phys.velocity.setLength(minSpeed);
+    if(speed>maxSpeed)phys.velocity.setLength(maxSpeed);
+
+    body.object3D.position.addScaledVector(phys.velocity,sec);
+    body.object3D.rotation.x+=phys.angular.x*sec;
+    body.object3D.rotation.y+=phys.angular.y*sec;
+    body.object3D.rotation.z+=phys.angular.z*sec;
+
+    const q=body.object3D.position;
+    if(q.x<minX){q.x=minX;phys.velocity.x=Math.abs(phys.velocity.x)*.92}
+    if(q.x>maxX){q.x=maxX;phys.velocity.x=-Math.abs(phys.velocity.x)*.92}
+    if(q.y<minY){q.y=minY;phys.velocity.y=Math.abs(phys.velocity.y)*.90}
+    if(q.y>maxY){q.y=maxY;phys.velocity.y=-Math.abs(phys.velocity.y)*.90}
+    if(q.z<minZ){q.z=minZ;phys.velocity.z=Math.abs(phys.velocity.z)*.92}
+    if(q.z>maxZ){q.z=maxZ;phys.velocity.z=-Math.abs(phys.velocity.z)*.92}
+
+    // Shared wall at x=20. Bodies may pass only through the doorway.
+    const inDoorway=Math.abs(q.z)<=3.0 && q.y<=7.0;
+    if(!inDoorway && Math.abs(q.x-20)<.42){
+      if(phys.velocity.x>0){q.x=19.55;phys.velocity.x=-Math.abs(phys.velocity.x)}
+      else{q.x=20.45;phys.velocity.x=Math.abs(phys.velocity.x)}
+    }
+  }
+
+  const radius=.36;
+  for(let i=0;i<bodies.length;i++){
+    const a=bodies[i],pa=state.physics.get(a);
+    if(!pa||(!pa.hazard&&a.dataset.used!=='loose'))continue;
+    for(let j=i+1;j<bodies.length;j++){
+      const b=bodies[j],pb=state.physics.get(b);
+      if(!pb||(!pb.hazard&&b.dataset.used!=='loose'))continue;
+      const delta=b.object3D.position.clone().sub(a.object3D.position);
+      const d=delta.length();
+      if(d>0&&d<radius*2){
+        const n=delta.multiplyScalar(1/d),overlap=radius*2-d;
+        a.object3D.position.addScaledVector(n,-overlap*.5);
+        b.object3D.position.addScaledVector(n, overlap*.5);
+        const rel=pb.velocity.clone().sub(pa.velocity),sep=rel.dot(n);
+        if(sep<0){
+          const impulse=-sep*.8;
+          pa.velocity.addScaledVector(n,-impulse);
+          pb.velocity.addScaledVector(n, impulse);
+        }
+      }
+    }
+  }
+
+  updateProjectiles(sec);
+  checkHazardTouch();
+}
+let zeroGLast=performance.now();
+function zeroGLoop(now){
+  // Window RAF is paused or throttled when an immersive XR session owns rendering.
+  // Use it only outside VR; the A-Frame component below drives physics inside XR.
+  if(!scene.is('vr-mode')){
+    stepZeroGPhysics(now,Math.min(50,now-zeroGLast));
+  }
+  zeroGLast=now;
+  requestAnimationFrame(zeroGLoop);
+}
+requestAnimationFrame(zeroGLoop);
+
+AFRAME.registerComponent('floating-cube-physics',{
+  init(){
+    this.lastXRTime=0;
+  },
+  tick(time,dt){
+    // A-Frame tick is synchronized with renderer.setAnimationLoop and therefore
+    // continues running inside the headset when normal requestAnimationFrame stops.
+    if(!scene.is('vr-mode')||!state||state.paused)return;
+    const safeDt=Math.min(50,Math.max(1,dt||16));
+    stepZeroGPhysics(time,safeDt);
+    this.lastXRTime=time;
+  }
+});
+
+AFRAME.registerComponent('cube-watchdog',{
+  tick(){
+    if(!state||!state.cubes)return;
+
+    // A held cube must actually be parented to one of the hands.
+    if(state.held){
+      const parent=state.held.object3D.parent;
+      const left=document.getElementById('left').object3D;
+      const right=document.getElementById('right').object3D;
+      if(parent!==left && parent!==right){
+        const orphan=state.held;
+        state.held=null;state.heldBy=null;
+        game.object3D.attach(orphan.object3D);
+        orphan.object3D.scale.set(1,1,1);
+        setCubeState(orphan,'loose');
+        syncTransform(orphan);
+      }
+    }
+
+    // No cube marked held may exist without being the one global held cube.
+    state.cubes.forEach(cube=>{
+      if(cube.dataset.used==='held' && cube!==state.held){
+        game.object3D.attach(cube.object3D);
+        cube.object3D.scale.set(1,1,1);
+        setCubeState(cube,'loose');
+        syncTransform(cube);
+      }
+    });
+  }
+});
+
+
+AFRAME.registerComponent('xr-button-poller',{
+  init(){
+    this.prevA=false;
+    this.prevX=false;
+  },
+  tick(){
+    if(!scene.is('vr-mode')||!state||state.paused)return;
+    const session=scene.renderer.xr.getSession();
+    if(!session)return;
+
+    let aPressed=false;
+    let xPressed=false;
+    let rightHand=null;
+
+    for(const source of session.inputSources){
+      const gp=source.gamepad;
+      if(!gp)continue;
+
+      // Standard WebXR mappings:
+      // left controller X = button 4, right controller A = button 4.
+      const faceButton=!!gp.buttons?.[4]?.pressed;
+      if(source.handedness==='left')xPressed=xPressed||faceButton;
+      if(source.handedness==='right'){
+        aPressed=aPressed||faceButton;
+        rightHand=document.getElementById('right');
+      }
+    }
+
+    if(xPressed&&!this.prevX&&!state.gameOver){
+      state.jetpack=true;
+      startJetSound();
+    }
+    if(!xPressed&&this.prevX){
+      state.jetpack=false;
+      stopJetSound();
+    }
+
+    if(aPressed&&!this.prevA&&rightHand&&!state.gameOver){
+      shootBall(rightHand);
+    }
+
+    this.prevX=xPressed;
+    this.prevA=aPressed;
+  }
+});
+
+AFRAME.registerComponent('locomotion',{
+ schema:{speed:{default:5.8},bounds:{default:14}},
+ init(){
+   this.lastTurn=0;this.cooldownUntil=0;
+   this.leftGrip=false;this.rightGrip=false;
+   this.prevL=new THREE.Vector3();this.prevR=new THREE.Vector3();this.havePrev=false;
+   this.burst=new THREE.Vector3();
+   const left=document.getElementById('left'),right=document.getElementById('right');
+   left.addEventListener('gripdown',()=>this.leftGrip=true);
+   left.addEventListener('gripup',()=>this.leftGrip=false);
+   right.addEventListener('gripdown',()=>this.rightGrip=true);
+   right.addEventListener('gripup',()=>this.rightGrip=false);
+ },
+ tick(time,dt){
+   if(!scene.is('vr-mode'))return;
+   const session=scene.renderer.xr.getSession();if(!session)return;
+   const sec=Math.max(.001,(dt||16)/1000),rig=this.el.object3D;
+   const camera=document.getElementById('camera').object3D;
+   const headQ=camera.getWorldQuaternion(new THREE.Quaternion());
+   const yaw=new THREE.Euler().setFromQuaternion(headQ,'YXZ').y;
+   const invYaw=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),-yaw);
+   const hp=camera.getWorldPosition(new THREE.Vector3());
+   const lp=worldPos(document.getElementById('left')).sub(hp).applyQuaternion(invYaw);
+   const rp=worldPos(document.getElementById('right')).sub(hp).applyQuaternion(invYaw);
+
+   if(!this.havePrev){this.prevL.copy(lp);this.prevR.copy(rp);this.havePrev=true;return;}
+   const dl=lp.clone().sub(this.prevL),dr=rp.clone().sub(this.prevR);
+   this.prevL.copy(lp);this.prevR.copy(rp);
+
+   // Pulling both hands toward the body increases local +Z.
+   const pull=(dl.z+dr.z)*.5;
+   const together=Math.min(dl.length(),dr.length());
+   if(this.leftGrip&&this.rightGrip&&time>this.cooldownUntil&&pull>.012&&together>.010){
+     const forward=new THREE.Vector3(0,0,-1).applyQuaternion(headQ);forward.y=0;forward.normalize();
+     const hopSpeed=Math.min(14,6.5+pull/sec*1.8);
+     this.burst.copy(forward).multiplyScalar(hopSpeed);
+     this.cooldownUntil=time+210;
+     sfx('grab');
+   }
+
+   // A real burst: roughly 1.5–3.5 metres depending on the swing.
+   rig.position.addScaledVector(this.burst,sec);
+   this.burst.multiplyScalar(Math.exp(-3.2*sec));
+   if(this.burst.length()<.05)this.burst.set(0,0,0);
+
+   let mx=0,my=0,turn=0;
+   for(const src of session.inputSources){
+     const a=src.gamepad?.axes;if(!a)continue;
+     const x=Math.abs(a[2]??a[0]??0)>.13?(a[2]??a[0]):0;
+     const y=Math.abs(a[3]??a[1]??0)>.13?(a[3]??a[1]):0;
+     if(src.handedness==='left'){mx=x;my=y}
+     if(src.handedness==='right')turn=x;
+   }
+   if(Math.abs(mx)>.01||Math.abs(my)>.01){
+     const f=new THREE.Vector3(0,0,-1).applyQuaternion(headQ);f.y=0;f.normalize();
+     const r=new THREE.Vector3(1,0,0).applyQuaternion(headQ);r.y=0;r.normalize();
+     const d=sec*this.data.speed;
+     rig.position.addScaledVector(f,-my*d);rig.position.addScaledVector(r,mx*d);
+   }
+   if(Math.abs(turn)>.66&&time-this.lastTurn>220){
+     rig.rotation.y-=Math.sign(turn)*THREE.MathUtils.degToRad(35);this.lastTurn=time;
+   }
+   const floorY=0,ceilingY=18.1;
+   const wasGrounded=rig.position.y<=floorY+.015;
+
+   if(state.jetpack&&!state.gameOver){
+     state.verticalVelocity=Math.min(6.8,state.verticalVelocity+10.5*sec);
+   }else{
+     state.verticalVelocity-=7.2*sec;
+   }
+   rig.position.y+=state.verticalVelocity*sec;
+
+   if(rig.position.y>ceilingY){
+     rig.position.y=ceilingY;
+     state.verticalVelocity=Math.min(0,state.verticalVelocity);
+   }
+   if(rig.position.y<=floorY){
+     const impact=-state.verticalVelocity;
+     rig.position.y=floorY;
+     state.verticalVelocity=0;
+     if(!wasGrounded&&impact>10.0&&!state.gameOver){
+       triggerGameOver(`FÖR HÅRD LANDNING ${impact.toFixed(1)} m/s`);
+     }
+   }
+
+   rig.position.x=Math.max(-19.0,Math.min(61.0,rig.position.x));
+   rig.position.z=Math.max(-19.0,Math.min(19.0,rig.position.z));
+
+   const playerInDoor=Math.abs(rig.position.z)<=2.8 && rig.position.y<=6.8;
+   if(!playerInDoor && Math.abs(rig.position.x-20)<.5){
+     rig.position.x=rig.position.x<20?19.45:20.55;
+   }
+ }
+});
+
+function reset(){
+  stopJetSound();
+  const oldGameOver=document.getElementById('gameOverRoot');if(oldGameOver)oldGameOver.remove();
+  const oldHud=document.getElementById('cornerHud');if(oldHud)oldHud.remove();
+  game.innerHTML='';
+  state={held:null,heldBy:null,slots:[],cubes:[],complete:new Set(),start:Date.now(),physics:new Map(),hazards:[],projectiles:[],gameOver:false,paused:false,jetpack:false,verticalVelocity:0,gameOverRoot:null,restartButton:null,hudPlanes:[],lastPlayerPos:null,lastSpeedTime:performance.now(),lastMeasuredSpeed:0};
+  createDecor();createCornerHud();
+  ANIMAL_WORDS.forEach((word,i)=>createStation(word,i,0));
+  NATURE_WORDS.forEach((word,i)=>createStation(word,i,1));
+
+  // Exactly one cube for every required letter across all 20 words.
+  const letters=seededShuffle(WORDS.map(word=>word.en).join('').split(''),multiplayer.room);
+  letters.forEach(createCube);
+  for(let i=0;i<3;i++)createHazardCube(i);
+  updateStatus();
+  setTimeout(()=>{if(state&&state.cubes.length){document.getElementById('tip').textContent+=' • ZERO-G AKTIV';}},700);
+}
+
+
+// A-Frame parsed the scene before these custom components were registered.
+// Attach them explicitly now so their tick loops always run.
+scene.removeAttribute('floating-cube-physics');
+scene.setAttribute('floating-cube-physics','');
+const rigEntity=document.getElementById('rig');
+rigEntity.removeAttribute('cube-watchdog');
+rigEntity.setAttribute('cube-watchdog','');
+
+document.getElementById('joinButton').onclick=()=>{
+  multiplayer.playerName=cleanCode(document.getElementById('playerName').value,'SPELARE');
+  multiplayer.room=cleanCode(document.getElementById('roomCode').value,'DJUR123');
+  reset();connectMultiplayer();
+};
+
+document.getElementById('enterVr').onclick=()=>{
+  zeroGLast=performance.now();
+  try{
+    const result=scene.enterVR();
+    if(result&&typeof result.catch==='function'){
+      result.catch(err=>{
+        console.error('VR-start misslyckades',err);
+        document.getElementById('tip').textContent='VR kunde inte startas — prova igen';
+      });
+    }
+  }catch(err){
+    console.error('VR-start misslyckades',err);
+    document.getElementById('tip').textContent='VR kunde inte startas — prova igen';
+  }
+};
+scene.addEventListener('enter-vr',()=>{zeroGLast=performance.now()});
+scene.addEventListener('exit-vr',()=>{zeroGLast=performance.now();stopJetSound();state.jetpack=false;});
+document.getElementById('resetBtn').onclick=()=>{
+  if(multiplayer.connected)sendMessage({type:'reset'});else reset();
+};
+
+// Important: start whether A-Frame has already loaded or not.
+if(scene.hasLoaded) reset();
+else scene.addEventListener('loaded',reset,{once:true});
+setInterval(()=>{if(state)updateStatus()},1000);
+</script>
+</body>
+</html>
