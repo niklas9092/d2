@@ -1,21 +1,16 @@
-# Djurbyggaren Cloudflare Multiplayer v28
+# Djurbyggaren Cloudflare Multiplayer v30
 
 ## Nytt
-- Tema 1: Skog & mark
-- Tema 2: Hav & kust
-- Rätt bokstav blir grön och låses direkt
-- Fel bokstav blir röd och kan tas bort
-- Större väggtavlor med spelare och poäng
-- Enkla nätverksfigurer med huvud, kropp, händer och buren bokstav
-- Förbättrade canvasfonter med automatisk storleksanpassning
+- Ett enda djurrum med tio ord.
+- Stor resultattavla på väggen utan avklippt text.
+- Tavlan visar rum, tid, klara ord, spelare och allas poäng.
+- Mjukare spelarrörelser genom 10 Hz nätverkspaket och bildruteinterpolering.
+- Tydligare spelarkroppar och större synlig bokstavskub.
+- Optimerad för 2–3 spelare och Quest: färre rum, färre kuber, färre dekorationer,
+  inga skuggor och färre dyra renderingsfunktioner.
+- Rätt bokstav sparas och ger 1 poäng. Färdigt ord ger ytterligare 10 poäng.
+- Odödligt läge.
 
-## Uppdatera
-Ladda upp och ersätt filerna i samma GitHub-repository. Cloudflare bygger automatiskt.
-
-
-## v29
-- Sparar i Durable Object efter varje korrekt bokstav.
-- +1 poäng per ny korrekt bokstav och +10 bonus per färdigt ord.
-- Odödligt läge: inga röda dödskuber och ingen död vid hård landning.
-- Tydligare färgkodade spelarfigurer med visor, kropp, ben, händer och namnskylt.
-- Lägre posefrekvens, ingen pose-echo, HUD-throttling och färre fyrverkspartiklar för bättre Quest-prestanda.
+## Uppdatering
+Packa upp ZIP-filen och ersätt filerna i samma GitHub-repository.
+Cloudflare publicerar automatiskt efter commit.

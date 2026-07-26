@@ -42,51 +42,29 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. Använd endast TRIGGER för att ta och släppa kuber.</div>
 
 <a-scene id="scene" floating-cube-physics
- renderer="antialias:true;colorManagement:true;physicallyCorrectLights:true"
+ renderer="antialias:true;colorManagement:true;physicallyCorrectLights:false;precision:mediump;sortObjects:true"
  background="color:#050b16"
  xr-mode-ui="enabled:false"
  webxr="optionalFeatures:local-floor,bounded-floor"
  raycaster="objects:.interactable;far:2.1">
 
  <a-entity light="type:ambient;color:#d8e7ff;intensity:.7"></a-entity>
- <a-entity light="type:directional;color:#ffffff;intensity:1.05;castShadow:true" position="-6 10 4"></a-entity>
+ <a-entity light="type:directional;color:#ffffff;intensity:1.05;castShadow:false" position="-6 10 4"></a-entity>
  <a-entity light="type:point;color:#46e5ff;intensity:2.4;distance:24" position="0 4 0"></a-entity>
  <a-entity light="type:point;color:#a667ff;intensity:2;distance:22" position="8 3 -8"></a-entity>
  <a-entity light="type:point;color:#ff5caa;intensity:1.5;distance:20" position="-8 3 7"></a-entity>
 
  <!-- 30 x 30 meter room -->
  <a-plane position="0 0 0" rotation="-90 0 0" width="40" height="40"
-   material="color:#0d1d34;roughness:.78;metalness:.12" shadow="receive:true"></a-plane>
+   material="color:#0d1d34;roughness:.78;metalness:.12"></a-plane>
  <a-plane position="0 10 -20" width="40" height="20" material="color:#09162a;roughness:.9"></a-plane>
  <a-plane position="0 10 20" rotation="0 180 0" width="40" height="20" material="color:#09162a;roughness:.9"></a-plane>
  <a-plane position="-20 10 0" rotation="0 90 0" width="40" height="20" material="color:#0a1930;roughness:.9"></a-plane>
 
  <a-plane position="0 20 0" rotation="90 0 0" width="40" height="40" material="color:#081426;roughness:.92;metalness:.08;side:double"></a-plane>
-
- <!-- Shared wall with a large doorway -->
- <a-box position="20 10 -11.5" width=".25" height="20" depth="17"
-   material="color:#0b1b2f;roughness:.88;metalness:.12"></a-box>
- <a-box position="20 10 11.5" width=".25" height="20" depth="17"
-   material="color:#0b1b2f;roughness:.88;metalness:.12"></a-box>
- <a-box position="20 13.5 0" width=".25" height="13" depth="6"
-   material="color:#0b1b2f;roughness:.88;metalness:.12"></a-box>
-
- <!-- Nature room, centered at x=42 -->
- <a-plane position="42 0 0" rotation="-90 0 0" width="40" height="40"
-   material="color:#18351f;roughness:.92;metalness:.02" shadow="receive:true"></a-plane>
- <a-plane position="42 10 -20" width="40" height="20"
-   material="color:#173122;roughness:.95"></a-plane>
- <a-plane position="42 10 20" rotation="0 180 0" width="40" height="20"
-   material="color:#173122;roughness:.95"></a-plane>
- <a-plane position="62 10 0" rotation="0 -90 0" width="40" height="20"
-   material="color:#142c1d;roughness:.95"></a-plane>
- <a-plane position="42 20 0" rotation="90 0 0" width="40" height="40"
-   material="color:#10283b;roughness:.95;side:double"></a-plane>
-
- <a-entity light="type:point;color:#8dff9d;intensity:2.1;distance:28" position="42 7 0"></a-entity>
- <a-entity light="type:point;color:#ffe08b;intensity:1.3;distance:22" position="50 5 -9"></a-entity>
-
- <a-ring position="0 .012 0" rotation="-90 0 0" radius-inner="3.4" radius-outer="3.46"
+ <a-plane position="20 10 0" rotation="0 -90 0" width="40" height="20"
+   material="color:#0a1930;roughness:.9"></a-plane>
+<a-ring position="0 .012 0" rotation="-90 0 0" radius-inner="3.4" radius-outer="3.46"
    material="color:#42e7ff;emissive:#42e7ff;emissiveIntensity:2"></a-ring>
  <a-ring position="0 .013 0" rotation="-90 0 0" radius-inner="8.5" radius-outer="8.57"
    material="color:#9c67ff;emissive:#9c67ff;emissiveIntensity:1.5"></a-ring>
@@ -123,19 +101,7 @@ const ANIMAL_WORDS=[
   {sv:'MÅRD',en:'MARTEN'},
   {sv:'JÄRV',en:'WOLVERINE'}
 ];
-const NATURE_WORDS=[
-  {sv:'BLÄCKFISK',en:'OCTOPUS'},
-  {sv:'MANET',en:'JELLYFISH'},
-  {sv:'SJÖHÄST',en:'SEAHORSE'},
-  {sv:'ROCKA',en:'STINGRAY'},
-  {sv:'DELFIN',en:'DOLPHIN'},
-  {sv:'HAJ',en:'SHARK'},
-  {sv:'VALROSS',en:'WALRUS'},
-  {sv:'SJÖLEJON',en:'SEALION'},
-  {sv:'HAVSSKÖLDPADDA',en:'SEATURTLE'},
-  {sv:'SÄL',en:'SEAL'}
-];
-const WORDS=[...ANIMAL_WORDS,...NATURE_WORDS];
+const WORDS=[...ANIMAL_WORDS];
 const ALPHABET='ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ';
 const COLORS=['#50ddff','#a66cff','#ff5ca5','#43d6a1','#ffd057','#4c84ff'];
 const scene=document.getElementById('scene');
@@ -244,7 +210,7 @@ function vecToArray(v){return [Number(v.x.toFixed(3)),Number(v.y.toFixed(3)),Num
 function quatToArray(q){return [Number(q.x.toFixed(4)),Number(q.y.toFixed(4)),Number(q.z.toFixed(4)),Number(q.w.toFixed(4))];}
 function sendPose(){
   if(!multiplayer.connected||!state)return;
-  const now=performance.now();if(now-multiplayer.lastPoseAt<170)return;
+  const now=performance.now();if(now-multiplayer.lastPoseAt<95)return;
   const camera=document.getElementById('camera'),left=document.getElementById('left'),right=document.getElementById('right');
   if(!camera||!left||!right)return;
   const hp=new THREE.Vector3(),hq=new THREE.Quaternion(),lp=new THREE.Vector3(),lq=new THREE.Quaternion(),rp=new THREE.Vector3(),rq=new THREE.Quaternion();
@@ -270,10 +236,10 @@ function createRemoteAvatar(id,name){
   const color=avatarColor(id),dark='#102033';
   const glow=`color:${color};emissive:${color};emissiveIntensity:.34;roughness:.38;metalness:.12`;
 
-  const head=avatarPart('a-sphere',{radius:'.245'},glow);root.appendChild(head);
+  const head=avatarPart('a-sphere',{radius:'.285'},glow);root.appendChild(head);
   const visor=avatarPart('a-sphere',{radius:'.19',position:'0 .015 -.145',scale:'1 .58 .22'},'color:#dffaff;emissive:#7cecff;emissiveIntensity:.48;metalness:.55;roughness:.18');root.appendChild(visor);
   const neck=avatarPart('a-cylinder',{radius:'.105',height:'.14',position:'0 -.29 0'},glow);root.appendChild(neck);
-  const body=avatarPart('a-cylinder',{radius:'.26',height:'.72',position:'0 -.68 0'},glow);root.appendChild(body);
+  const body=avatarPart('a-cylinder',{radius:'.31',height:'.82',position:'0 -.68 0'},glow);root.appendChild(body);
   const chest=avatarPart('a-box',{width:'.38',height:'.18',depth:'.29',position:'0 -.53 -.07'},`color:${dark};emissive:${color};emissiveIntensity:.18;roughness:.45`);root.appendChild(chest);
   const hips=avatarPart('a-sphere',{radius:'.22',position:'0 -1.05 0',scale:'1 .62 .75'},glow);root.appendChild(hips);
   const legL=avatarPart('a-cylinder',{radius:'.075',height:'.55',position:'-.12 -1.38 0'},glow);root.appendChild(legL);
@@ -281,34 +247,62 @@ function createRemoteAvatar(id,name){
   const footL=avatarPart('a-box',{width:'.18',height:'.10',depth:'.30',position:'-.12 -1.68 -.08'},glow);root.appendChild(footL);
   const footR=avatarPart('a-box',{width:'.18',height:'.10',depth:'.30',position:'.12 -1.68 -.08'},glow);root.appendChild(footR);
 
-  const badge=planeLabel(name||'SPELARE',[0,.48,0],1.9,.36,'rgba(3,12,25,.94)',color,124);root.appendChild(badge);
+  const badge=planeLabel(name||'SPELARE',[0,.58,0],2.25,.44,'rgba(3,12,25,.94)',color,124);root.appendChild(badge);
   const left=avatarPart('a-sphere',{radius:'.125'},glow);game.appendChild(left);
   const right=avatarPart('a-sphere',{radius:'.125'},glow);game.appendChild(right);
   const ringL=avatarPart('a-torus',{radius:'.16','radius-tubular':'.018',rotation:'90 0 0'},`color:${color};emissive:${color};emissiveIntensity:1.1;shader:flat`);left.appendChild(ringL);
   const ringR=avatarPart('a-torus',{radius:'.16','radius-tubular':'.018',rotation:'90 0 0'},`color:${color};emissive:${color};emissiveIntensity:1.1;shader:flat`);right.appendChild(ringR);
-  const letter=avatarPart('a-box',{width:'.42',height:'.42',depth:'.42',visible:'false'},`color:${color};emissive:${color};emissiveIntensity:.25;roughness:.4`);game.appendChild(letter);
+  const letter=avatarPart('a-box',{width:'.50',height:'.50',depth:'.50',visible:'false'},`color:${color};emissive:${color};emissiveIntensity:.25;roughness:.4`);game.appendChild(letter);
   game.appendChild(root);
-  const avatar={root,head,left,right,letter,name,color,targetHead:new THREE.Vector3(),targetLeft:new THREE.Vector3(),targetRight:new THREE.Vector3()};
+  const avatar={
+    root,head,left,right,letter,name,color,heldLetter:'',heldHand:'right',
+    targetRootPos:new THREE.Vector3(),targetRootQuat:new THREE.Quaternion(),
+    targetLeftPos:new THREE.Vector3(),targetLeftQuat:new THREE.Quaternion(),
+    targetRightPos:new THREE.Vector3(),targetRightQuat:new THREE.Quaternion()
+  };
   multiplayer.avatars[id]=avatar;return avatar;
 }
 function updateRemoteAvatar(id,name,pose){
   if(id===multiplayer.playerId||!pose)return;
   const a=createRemoteAvatar(id,name);
-  const smooth=(el,p,q)=>{
-    if(p){el.object3D.position.lerp(new THREE.Vector3().fromArray(p),.58);}
-    if(q){el.object3D.quaternion.slerp(new THREE.Quaternion().fromArray(q),.58);}
+  const setTarget=(key,p,q)=>{
+    if(p)a[`target${key}Pos`]=new THREE.Vector3().fromArray(p);
+    if(q)a[`target${key}Quat`]=new THREE.Quaternion().fromArray(q);
   };
-  smooth(a.root,pose.head,pose.headQ);smooth(a.left,pose.left,pose.leftQ);smooth(a.right,pose.right,pose.rightQ);
-  if(pose.heldLetter){
-    const hand=pose.heldHand==='left'?a.left:a.right;
-    a.letter.setAttribute('visible','true');a.letter.object3D.position.copy(hand.object3D.position);a.letter.object3D.quaternion.copy(hand.object3D.quaternion);a.letter.object3D.position.y-=.02;
-    if(a.letter.dataset.letter!==pose.heldLetter){a.letter.dataset.letter=pose.heldLetter;addCubeFaces(a.letter,pose.heldLetter);}
-  }else a.letter.setAttribute('visible','false');
+  setTarget('Root',pose.head,pose.headQ);
+  setTarget('Left',pose.left,pose.leftQ);
+  setTarget('Right',pose.right,pose.rightQ);
+  a.heldLetter=pose.heldLetter||'';
+  a.heldHand=pose.heldHand||'right';
 }
+function smoothRemoteAvatars(){
+  const alpha=0.18;
+  for(const a of Object.values(multiplayer.avatars)){
+    const move=(el,p,q)=>{
+      if(p)el.object3D.position.lerp(p,alpha);
+      if(q)el.object3D.quaternion.slerp(q,alpha);
+    };
+    move(a.root,a.targetRootPos,a.targetRootQuat);
+    move(a.left,a.targetLeftPos,a.targetLeftQuat);
+    move(a.right,a.targetRightPos,a.targetRightQuat);
+    if(a.heldLetter){
+      const hand=a.heldHand==='left'?a.left:a.right;
+      a.letter.setAttribute('visible','true');
+      a.letter.object3D.position.lerp(hand.object3D.position,.34);
+      a.letter.object3D.quaternion.slerp(hand.object3D.quaternion,.34);
+      if(a.letter.dataset.letter!==a.heldLetter){
+        a.letter.dataset.letter=a.heldLetter;
+        addCubeFaces(a.letter,a.heldLetter);
+      }
+    }else a.letter.setAttribute('visible','false');
+  }
+  requestAnimationFrame(smoothRemoteAvatars);
+}
+requestAnimationFrame(smoothRemoteAvatars);
 function removeMissingAvatars(){
   for(const [id,a] of Object.entries(multiplayer.avatars))if(!multiplayer.players[id]){a.root.remove();a.left.remove();a.right.remove();a.letter.remove();delete multiplayer.avatars[id];}
 }
-setInterval(sendPose,180);
+setInterval(sendPose,100);
 
 function audio(){
   if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
@@ -493,7 +487,7 @@ function stationTransform(i,roomIndex){
 }
 function createStation(entry,i,roomIndex){
   const tr=stationTransform(i,roomIndex),root=document.createElement('a-entity');
-  const nature=roomIndex===1;
+  const nature=false;
   const wordKey=`${roomIndex}-${i}`;
   const target=entry.en;
   root.setAttribute('position',`${tr.x} 0 ${tr.z}`);
@@ -537,104 +531,141 @@ function createStation(entry,i,roomIndex){
   game.appendChild(root);
 }
 function createDecor(){
-  // Futuristic room corners and wall lights.
+  // Ett enda lugnt och optimerat djurrum.
   [[-19.5,-19.5],[-19.5,19.5],[19.5,-19.5],[19.5,19.5]].forEach(([x,z],i)=>{
-    const pillar=box([x,10,z],[.28,20,.28],i%2?'#253966':'#164d68');
-    pillar.setAttribute('material',`color:${i%2?'#253966':'#164d68'};emissive:${i%2?'#755cff':'#2ddfff'};emissiveIntensity:.35;metalness:.55`);
+    const pillar=box([x,10,z],[.24,20,.24],i%2?'#253966':'#164d68');
+    pillar.setAttribute('material',`color:${i%2?'#253966':'#164d68'};emissive:${i%2?'#755cff':'#2ddfff'};emissiveIntensity:.28;metalness:.38`);
     game.appendChild(pillar);
   });
-  for(let i=-16;i<=16;i+=4){
-    game.appendChild(box([i,10,-19.82],[.08,18,.08],'#1b5874'));
-    game.appendChild(box([i,10,19.82],[.08,18,.08],'#3a2f67'));
-    game.appendChild(box([-19.82,10,i],[.08,18,.08],'#1b5874'));
+  // Färre dekorobjekt ger stabilare bild i Quest.
+  for(let i=-16;i<=16;i+=8){
+    game.appendChild(box([i,10,-19.82],[.07,18,.07],'#1b5874'));
+    game.appendChild(box([i,10,19.82],[.07,18,.07],'#3a2f67'));
+    game.appendChild(box([-19.82,10,i],[.07,18,.07],'#1b5874'));
+    game.appendChild(box([19.82,10,i],[.07,18,.07],'#3a2f67'));
   }
-
-  game.appendChild(planeLabel('SKOG & MARK',[0,12.5,-19.75],10,1.4,'#0c1d35','#ffffff',104));
-  game.appendChild(planeLabel('LÄR DIG DJUREN PÅ ENGELSKA',[0,11.2,-19.74],11,.62,'#0c1d35','#59e6d4',66));
-
-  // Nature room: stylized trunks, canopies, rocks, and glowing vines.
-  for(let i=0;i<14;i++){
-    const ang=i/14*Math.PI*2;
-    const x=42+Math.sin(ang)*16.2;
-    const z=Math.cos(ang)*16.2;
-    const trunk=box([x,3,z],[.45,6,.45],'#4b301d');
-    trunk.setAttribute('material','color:#4b301d;roughness:1');
-    game.appendChild(trunk);
-
-    const crown=document.createElement('a-sphere');
-    crown.setAttribute('position',`${x} 6.4 ${z}`);
-    crown.setAttribute('radius',`${1.0+rand(0,.55)}`);
-    crown.setAttribute('material','color:#2c7138;emissive:#174823;emissiveIntensity:.25;roughness:.95');
-    game.appendChild(crown);
-  }
-
-  for(let i=0;i<18;i++){
-    const rock=document.createElement('a-dodecahedron');
-    rock.setAttribute('position',`${42+rand(-17,17)} ${rand(.25,.7)} ${rand(-17,17)}`);
-    rock.setAttribute('radius',`${rand(.25,.65)}`);
-    rock.setAttribute('material','color:#536254;roughness:1');
-    game.appendChild(rock);
-  }
-
-  game.appendChild(planeLabel('HAV & KUST',[42,12.5,-19.75],10,1.4,'#173122','#e9ffe5',104));
-  game.appendChild(planeLabel('HAVSDJUR • ENGELSKA ORDBLOCK I BÅDA RUMMEN',[42,11.2,-19.74],10,.62,'#173122','#aaff9b',70));
-
-  // Doorway frame and guiding lights.
-  game.appendChild(box([20,3.5,-3.15],[.35,7,.25],'#42d8ff'));
-  game.appendChild(box([20,3.5,3.15],[.35,7,.25],'#81ef81'));
-  game.appendChild(box([20,7,0],[.35,.25,6.5],'#d9ff78'));
-  game.appendChild(planeLabel('PASSAGE TILL NATURRUMMET',[19.82,8.15,0],5.6,.55,'#102743','#e8ff8b',72,'0 -90 0'));
+  game.appendChild(planeLabel('DJURRUMMET',[0,12.65,-19.75],11,1.5,'#0c1d35','#ffffff',112));
+  game.appendChild(planeLabel('LÄR DIG DJUREN PÅ ENGELSKA',[0,11.25,-19.74],12,.68,'#0c1d35','#59e6d4',68));
 }
 function createHud(){
   const hud=document.createElement('a-entity');hud.id='hud';hud.setAttribute('position','0 3.4 8.3');hud.setAttribute('rotation','0 180 0');
   hud.appendChild(box([0,0,0],[5.7,1.25,.15],'#102743'));
-  hud.appendChild(planeLabel('20 ORD • ENGELSK TRÄNING',[0,.28,.09],4.6,.43,'#102743','#ffffff',112));
-  const status=planeLabel('0 / 20 KLARA',[0,-.18,.09],3.5,.38,'#102743','#58e4c9',112);status.id='statusPlane';hud.appendChild(status);
+  hud.appendChild(planeLabel('10 ORD • ENGELSK TRÄNING',[0,.28,.09],4.6,.43,'#102743','#ffffff',112));
+  const status=planeLabel('0 / 10 KLARA',[0,-.18,.09],3.5,.38,'#102743','#58e4c9',112);status.id='statusPlane';hud.appendChild(status);
   game.appendChild(hud);
 }
 
+function fitHudText(ctx,text,maxWidth,startSize,minSize=32){
+  let size=startSize;
+  const family='"Trebuchet MS",Verdana,Arial,sans-serif';
+  while(size>minSize){
+    ctx.font=`900 ${size}px ${family}`;
+    if(ctx.measureText(text).width<=maxWidth)break;
+    size-=2;
+  }
+  return size;
+}
 function makeHudTexture(){
-  const c=document.createElement('canvas');c.width=1400;c.height=900;const x=c.getContext('2d');
-  x.clearRect(0,0,c.width,c.height);x.textBaseline='top';
-  const family='"Arial Rounded MT Bold","Trebuchet MS",Verdana,Arial,sans-serif';
-  x.fillStyle='rgba(4,15,29,.92)';x.fillRect(0,0,c.width,c.height);
-  x.strokeStyle='rgba(91,229,255,.65)';x.lineWidth=10;x.strokeRect(12,12,c.width-24,c.height-24);
-  x.font=`900 86px ${family}`;x.fillStyle='#eafcff';x.fillText('MULTIPLAYER',55,42);
+  const c=document.createElement('canvas');
+  c.width=1800;c.height=1050;
+  const x=c.getContext('2d');
+  const family='"Trebuchet MS",Verdana,Arial,sans-serif';
+  x.textBaseline='middle';
+  x.fillStyle='#061225';x.fillRect(0,0,c.width,c.height);
+
+  const grad=x.createLinearGradient(0,0,c.width,c.height);
+  grad.addColorStop(0,'rgba(44,227,255,.20)');
+  grad.addColorStop(.55,'rgba(107,89,255,.10)');
+  grad.addColorStop(1,'rgba(255,76,171,.14)');
+  x.fillStyle=grad;x.fillRect(0,0,c.width,c.height);
+
+  x.strokeStyle='#5be5ff';x.lineWidth=14;x.strokeRect(18,18,c.width-36,c.height-36);
+  x.strokeStyle='rgba(255,255,255,.18)';x.lineWidth=3;x.strokeRect(42,42,c.width-84,c.height-84);
+
+  x.textAlign='left';
+  x.font=`900 112px ${family}`;x.fillStyle='#f4fdff';x.fillText('DJURBYGGAREN',72,105);
+  x.font=`800 46px ${family}`;x.fillStyle='#72eaff';x.fillText(`RUM ${multiplayer.room}`,76,205);
+
   const sec=Math.floor((Date.now()-state.start)/1000);
-  x.font=`800 52px ${family}`;x.fillStyle='#78eaff';x.fillText(`RUM ${multiplayer.room}`,58,150);
-  x.fillStyle='#ffffff';x.fillText(`TID ${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`,58,220);
-  x.fillStyle='#69efb9';x.fillText(`ORD ${state.complete.size} / ${WORDS.length}`,58,290);
-  x.fillStyle='#ffd66f';x.fillText(`SPELARE ${Object.keys(multiplayer.players).length}`,58,360);
-  x.font=`900 54px ${family}`;x.fillStyle='#ffffff';x.fillText('POÄNG  •  +1 BOKSTAV  +10 ORD',610,150);
-  const rows=Object.entries(multiplayer.scores).map(([id,v])=>({id,name:(multiplayer.players[id]&&multiplayer.players[id].name)||v.name||'SPELARE',score:Number(v.score)||0})).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,6);
-  x.font=`800 48px ${family}`;
-  rows.forEach((r,i)=>{const y=230+i*76;x.fillStyle=r.id===multiplayer.playerId?'#ff9de1':'#d9efff';x.fillText(`${i+1}. ${r.name}`,610,y);x.textAlign='right';x.fillStyle='#ffe17a';x.fillText(String(r.score),1330,y);x.textAlign='left';});
-  if(!rows.length){x.fillStyle='#8196ad';x.fillText('VÄNTAR PÅ SPELARE…',610,230);}
-  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;return tex;
+  const minutes=Math.floor(sec/60), seconds=String(sec%60).padStart(2,'0');
+  const players=Object.entries(multiplayer.scores)
+    .map(([id,v])=>({
+      id,
+      name:(multiplayer.players[id]&&multiplayer.players[id].name)||v.name||'SPELARE',
+      score:Number(v.score)||0
+    }))
+    .sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name))
+    .slice(0,3);
+
+  // Left statistics column
+  x.fillStyle='rgba(0,0,0,.22)';x.fillRect(65,270,545,670);
+  x.strokeStyle='rgba(104,235,255,.35)';x.lineWidth=4;x.strokeRect(65,270,545,670);
+  x.font=`900 50px ${family}`;x.fillStyle='#ffffff';x.fillText('SPELSTATUS',105,330);
+
+  const stats=[
+    [`ORD KLARA`,`${state.complete.size} / ${WORDS.length}`,'#66efba'],
+    [`TID`,`${minutes}:${seconds}`,'#ffffff'],
+    [`SPELARE`,`${Object.keys(multiplayer.players).length}`,'#ffd66f'],
+    [`RÄTT BOKSTAV`,`+1 POÄNG`,'#83f4c6'],
+    [`RÄTT ORD`,`+10 POÄNG`,'#ff9de1']
+  ];
+  stats.forEach((row,i)=>{
+    const y=420+i*105;
+    x.font=`800 36px ${family}`;x.fillStyle='#8eabc7';x.fillText(row[0],105,y-25);
+    x.font=`900 58px ${family}`;x.fillStyle=row[2];x.fillText(row[1],105,y+25);
+  });
+
+  // Right leaderboard column
+  x.fillStyle='rgba(0,0,0,.25)';x.fillRect(650,270,1085,670);
+  x.strokeStyle='rgba(255,255,255,.20)';x.strokeRect(650,270,1085,670);
+  x.font=`900 55px ${family}`;x.fillStyle='#ffffff';x.fillText('SPELARE OCH POÄNG',705,330);
+
+  if(players.length){
+    players.forEach((p,i)=>{
+      const y=455+i*170;
+      const color=avatarColor(p.id);
+      x.fillStyle=color;x.beginPath();x.arc(735,y,34,0,Math.PI*2);x.fill();
+      x.textAlign='left';
+      const name=String(p.name).slice(0,12);
+      const size=fitHudText(x,`${i+1}. ${name}`,650,72,44);
+      x.font=`900 ${size}px ${family}`;
+      x.fillStyle=p.id===multiplayer.playerId?'#ffb3df':'#edf9ff';
+      x.fillText(`${i+1}. ${name}`,800,y);
+      x.textAlign='right';
+      x.font=`900 92px ${family}`;x.fillStyle='#ffe17a';x.fillText(String(p.score),1660,y);
+    });
+  }else{
+    x.font=`800 58px ${family}`;x.fillStyle='#8399b1';x.fillText('VÄNTAR PÅ SPELARE…',710,470);
+  }
+
+  const tex=new THREE.CanvasTexture(c);
+  tex.colorSpace=THREE.SRGBColorSpace;
+  tex.minFilter=THREE.LinearFilter;
+  tex.magFilter=THREE.LinearFilter;
+  tex.generateMipmaps=false;
+  return tex;
 }
 function createCornerHud(){
   state.hudPlanes=[];
-  [
-    {pos:[8.5,15.1,-19.72],rot:'0 0 0'},
-    {pos:[50.5,15.1,-19.72],rot:'0 0 0'}
-  ].forEach((cfg,index)=>{
-    const plane=document.createElement('a-plane');
-    plane.id=`roomHud${index}`;
-    plane.setAttribute('position',cfg.pos.join(' '));
-    plane.setAttribute('rotation',cfg.rot);
-    plane.setAttribute('width','7.2');
-    plane.setAttribute('height','4.6');
-    plane.setAttribute('material','shader:flat;transparent:true;side:double');
-    game.appendChild(plane);
-    state.hudPlanes.push(plane);
-  });
-  refreshRoomHuds();
+  const frame=box([0,14.0,-19.60],[15.6,8.4,.20],'#061225');
+  frame.setAttribute('material','color:#061225;emissive:#12385c;emissiveIntensity:.22;roughness:.42;metalness:.22');
+  game.appendChild(frame);
+
+  const plane=document.createElement('a-plane');
+  plane.id='roomHud0';
+  plane.setAttribute('position','0 14 -19.47');
+  plane.setAttribute('width','15');
+  plane.setAttribute('height','8');
+  plane.setAttribute('material','shader:flat;side:double');
+  game.appendChild(plane);
+  state.hudPlanes.push(plane);
+  refreshRoomHuds(true);
 }
 function refreshRoomHuds(force=false){
-  if(!state||!state.hudPlanes)return;
+  if(!state||!state.hudPlanes||!state.hudPlanes.length)return;
   const now=performance.now();
   if(!force&&!multiplayer.hudDirty&&now-multiplayer.lastHudRefresh<1000)return;
-  if(!force&&now-multiplayer.lastHudRefresh<750)return;
+  if(!force&&now-multiplayer.lastHudRefresh<900)return;
   multiplayer.lastHudRefresh=now;multiplayer.hudDirty=false;
   const texture=makeHudTexture();
   state.hudPlanes.forEach(plane=>{
@@ -672,7 +703,7 @@ function updateStatus(){
 
   const loose=state.cubes.filter(c=>c.dataset.used==='loose'||c.dataset.used==='held').length;
   if(!state.gameOver)document.getElementById('tip').textContent=
-    `${state.complete.size}/20 klara • ${loose} bokstavskuber • rätt bokstav sparas, blir grön och låses`;
+    `${state.complete.size}/${WORDS.length} klara • ${loose} bokstavskuber • rätt bokstav sparas, blir grön och låses`;
 }
 function worldPos(el){const v=new THREE.Vector3();el.object3D.getWorldPosition(v);return v}
 function nearestSlot(pos,max=.8){
@@ -1367,9 +1398,8 @@ function reset(){
   state={held:null,heldBy:null,slots:[],cubes:[],complete:new Set(),start:Date.now(),physics:new Map(),hazards:[],projectiles:[],gameOver:false,paused:false,jetpack:false,verticalVelocity:0,gameOverRoot:null,restartButton:null,hudPlanes:[],lastPlayerPos:null,lastSpeedTime:performance.now(),lastMeasuredSpeed:0};
   createDecor();createCornerHud();
   ANIMAL_WORDS.forEach((word,i)=>createStation(word,i,0));
-  NATURE_WORDS.forEach((word,i)=>createStation(word,i,1));
 
-  // Exactly one cube for every required letter across all 20 words.
+  // Exactly one cube for every required letter across all 10 words.
   const letters=seededShuffle(WORDS.map(word=>word.en).join('').split(''),multiplayer.room);
   letters.forEach(createCube);
   // Odödligt läge: inga dödliga röda kuber skapas.
