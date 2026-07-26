@@ -144,7 +144,7 @@ let state;
 let audioCtx=null;
 const multiplayer={
   socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
-  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0
+  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0
 };
 
 
@@ -152,6 +152,7 @@ function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,12)||fallback);
 }
 function renderMultiplayerStatus(){
+  multiplayer.hudDirty=true;
   const status=document.getElementById('connectionText');
   const score=document.getElementById('scoreText');
   if(status)status.textContent=multiplayer.connected
@@ -243,44 +244,71 @@ function vecToArray(v){return [Number(v.x.toFixed(3)),Number(v.y.toFixed(3)),Num
 function quatToArray(q){return [Number(q.x.toFixed(4)),Number(q.y.toFixed(4)),Number(q.z.toFixed(4)),Number(q.w.toFixed(4))];}
 function sendPose(){
   if(!multiplayer.connected||!state)return;
-  const now=performance.now();if(now-multiplayer.lastPoseAt<90)return;multiplayer.lastPoseAt=now;
+  const now=performance.now();if(now-multiplayer.lastPoseAt<170)return;
   const camera=document.getElementById('camera'),left=document.getElementById('left'),right=document.getElementById('right');
   if(!camera||!left||!right)return;
   const hp=new THREE.Vector3(),hq=new THREE.Quaternion(),lp=new THREE.Vector3(),lq=new THREE.Quaternion(),rp=new THREE.Vector3(),rq=new THREE.Quaternion();
   camera.object3D.getWorldPosition(hp);camera.object3D.getWorldQuaternion(hq);left.object3D.getWorldPosition(lp);left.object3D.getWorldQuaternion(lq);right.object3D.getWorldPosition(rp);right.object3D.getWorldQuaternion(rq);
   let heldLetter='',heldHand='';
   if(state.held){heldLetter=state.held.dataset.letter||'';heldHand=state.heldBy&&state.heldBy.id?state.heldBy.id:'';}
-  sendMessage({type:'pose',pose:{head:vecToArray(hp),headQ:quatToArray(hq),left:vecToArray(lp),leftQ:quatToArray(lq),right:vecToArray(rp),rightQ:quatToArray(rq),heldLetter,heldHand}});
+  const pose={head:vecToArray(hp),headQ:quatToArray(hq),left:vecToArray(lp),leftQ:quatToArray(lq),right:vecToArray(rp),rightQ:quatToArray(rq),heldLetter,heldHand};
+  const signature=JSON.stringify(pose);
+  if(signature===multiplayer.lastPoseSignature&&now-multiplayer.lastPoseAt<900)return;
+  multiplayer.lastPoseAt=now;multiplayer.lastPoseSignature=signature;
+  sendMessage({type:'pose',pose});
 }
 function avatarColor(id){let h=0;for(const ch of id)h=(h*31+ch.charCodeAt(0))>>>0;return COLORS[h%COLORS.length];}
+function avatarPart(tag,attrs,material){
+  const el=document.createElement(tag);
+  for(const [key,value] of Object.entries(attrs||{}))el.setAttribute(key,value);
+  if(material)el.setAttribute('material',material);
+  return el;
+}
 function createRemoteAvatar(id,name){
   if(multiplayer.avatars[id])return multiplayer.avatars[id];
   const root=document.createElement('a-entity');root.id=`avatar-${id}`;
-  const color=avatarColor(id);
-  const head=document.createElement('a-sphere');head.setAttribute('radius','.22');head.setAttribute('material',`color:${color};emissive:${color};emissiveIntensity:.28;roughness:.45`);root.appendChild(head);
-  const body=document.createElement('a-box');body.setAttribute('width','.42');body.setAttribute('height','.62');body.setAttribute('depth','.22');body.setAttribute('position','0 -.52 0');body.setAttribute('material',`color:${color};roughness:.65`);root.appendChild(body);
-  const label=planeLabel(name||'SPELARE',[0,.42,0],1.6,.3,'rgba(5,15,28,.88)','#ffffff',112);root.appendChild(label);
-  const left=document.createElement('a-sphere');left.setAttribute('radius','.095');left.setAttribute('material',`color:${color};emissive:${color};emissiveIntensity:.35`);game.appendChild(left);
-  const right=document.createElement('a-sphere');right.setAttribute('radius','.095');right.setAttribute('material',`color:${color};emissive:${color};emissiveIntensity:.35`);game.appendChild(right);
-  const letter=document.createElement('a-box');letter.setAttribute('width','.34');letter.setAttribute('height','.34');letter.setAttribute('depth','.34');letter.setAttribute('visible','false');game.appendChild(letter);
+  const color=avatarColor(id),dark='#102033';
+  const glow=`color:${color};emissive:${color};emissiveIntensity:.34;roughness:.38;metalness:.12`;
+
+  const head=avatarPart('a-sphere',{radius:'.245'},glow);root.appendChild(head);
+  const visor=avatarPart('a-sphere',{radius:'.19',position:'0 .015 -.145',scale:'1 .58 .22'},'color:#dffaff;emissive:#7cecff;emissiveIntensity:.48;metalness:.55;roughness:.18');root.appendChild(visor);
+  const neck=avatarPart('a-cylinder',{radius:'.105',height:'.14',position:'0 -.29 0'},glow);root.appendChild(neck);
+  const body=avatarPart('a-cylinder',{radius:'.26',height:'.72',position:'0 -.68 0'},glow);root.appendChild(body);
+  const chest=avatarPart('a-box',{width:'.38',height:'.18',depth:'.29',position:'0 -.53 -.07'},`color:${dark};emissive:${color};emissiveIntensity:.18;roughness:.45`);root.appendChild(chest);
+  const hips=avatarPart('a-sphere',{radius:'.22',position:'0 -1.05 0',scale:'1 .62 .75'},glow);root.appendChild(hips);
+  const legL=avatarPart('a-cylinder',{radius:'.075',height:'.55',position:'-.12 -1.38 0'},glow);root.appendChild(legL);
+  const legR=avatarPart('a-cylinder',{radius:'.075',height:'.55',position:'.12 -1.38 0'},glow);root.appendChild(legR);
+  const footL=avatarPart('a-box',{width:'.18',height:'.10',depth:'.30',position:'-.12 -1.68 -.08'},glow);root.appendChild(footL);
+  const footR=avatarPart('a-box',{width:'.18',height:'.10',depth:'.30',position:'.12 -1.68 -.08'},glow);root.appendChild(footR);
+
+  const badge=planeLabel(name||'SPELARE',[0,.48,0],1.9,.36,'rgba(3,12,25,.94)',color,124);root.appendChild(badge);
+  const left=avatarPart('a-sphere',{radius:'.125'},glow);game.appendChild(left);
+  const right=avatarPart('a-sphere',{radius:'.125'},glow);game.appendChild(right);
+  const ringL=avatarPart('a-torus',{radius:'.16','radius-tubular':'.018',rotation:'90 0 0'},`color:${color};emissive:${color};emissiveIntensity:1.1;shader:flat`);left.appendChild(ringL);
+  const ringR=avatarPart('a-torus',{radius:'.16','radius-tubular':'.018',rotation:'90 0 0'},`color:${color};emissive:${color};emissiveIntensity:1.1;shader:flat`);right.appendChild(ringR);
+  const letter=avatarPart('a-box',{width:'.42',height:'.42',depth:'.42',visible:'false'},`color:${color};emissive:${color};emissiveIntensity:.25;roughness:.4`);game.appendChild(letter);
   game.appendChild(root);
-  const avatar={root,head,left,right,letter,name};multiplayer.avatars[id]=avatar;return avatar;
+  const avatar={root,head,left,right,letter,name,color,targetHead:new THREE.Vector3(),targetLeft:new THREE.Vector3(),targetRight:new THREE.Vector3()};
+  multiplayer.avatars[id]=avatar;return avatar;
 }
 function updateRemoteAvatar(id,name,pose){
   if(id===multiplayer.playerId||!pose)return;
   const a=createRemoteAvatar(id,name);
-  const setTransform=(el,p,q)=>{if(p)el.object3D.position.fromArray(p);if(q)el.object3D.quaternion.fromArray(q);};
-  setTransform(a.root,pose.head,pose.headQ);setTransform(a.left,pose.left,pose.leftQ);setTransform(a.right,pose.right,pose.rightQ);
+  const smooth=(el,p,q)=>{
+    if(p){el.object3D.position.lerp(new THREE.Vector3().fromArray(p),.58);}
+    if(q){el.object3D.quaternion.slerp(new THREE.Quaternion().fromArray(q),.58);}
+  };
+  smooth(a.root,pose.head,pose.headQ);smooth(a.left,pose.left,pose.leftQ);smooth(a.right,pose.right,pose.rightQ);
   if(pose.heldLetter){
     const hand=pose.heldHand==='left'?a.left:a.right;
-    a.letter.setAttribute('visible','true');a.letter.object3D.position.copy(hand.object3D.position);a.letter.object3D.quaternion.copy(hand.object3D.quaternion);a.letter.object3D.position.y-=.03;
+    a.letter.setAttribute('visible','true');a.letter.object3D.position.copy(hand.object3D.position);a.letter.object3D.quaternion.copy(hand.object3D.quaternion);a.letter.object3D.position.y-=.02;
     if(a.letter.dataset.letter!==pose.heldLetter){a.letter.dataset.letter=pose.heldLetter;addCubeFaces(a.letter,pose.heldLetter);}
   }else a.letter.setAttribute('visible','false');
 }
 function removeMissingAvatars(){
   for(const [id,a] of Object.entries(multiplayer.avatars))if(!multiplayer.players[id]){a.root.remove();a.left.remove();a.right.remove();a.letter.remove();delete multiplayer.avatars[id];}
 }
-setInterval(sendPose,100);
+setInterval(sendPose,180);
 
 function audio(){
   if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
@@ -577,8 +605,8 @@ function makeHudTexture(){
   x.fillStyle='#ffffff';x.fillText(`TID ${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`,58,220);
   x.fillStyle='#69efb9';x.fillText(`ORD ${state.complete.size} / ${WORDS.length}`,58,290);
   x.fillStyle='#ffd66f';x.fillText(`SPELARE ${Object.keys(multiplayer.players).length}`,58,360);
-  x.font=`900 54px ${family}`;x.fillStyle='#ffffff';x.fillText('POÄNG',610,150);
-  const rows=Object.entries(multiplayer.scores).map(([id,v])=>({id,name:(multiplayer.players[id]&&multiplayer.players[id].name)||v.name||'SPELARE',score:Number(v.score)||0})).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,8);
+  x.font=`900 54px ${family}`;x.fillStyle='#ffffff';x.fillText('POÄNG  •  +1 BOKSTAV  +10 ORD',610,150);
+  const rows=Object.entries(multiplayer.scores).map(([id,v])=>({id,name:(multiplayer.players[id]&&multiplayer.players[id].name)||v.name||'SPELARE',score:Number(v.score)||0})).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,6);
   x.font=`800 48px ${family}`;
   rows.forEach((r,i)=>{const y=230+i*76;x.fillStyle=r.id===multiplayer.playerId?'#ff9de1':'#d9efff';x.fillText(`${i+1}. ${r.name}`,610,y);x.textAlign='right';x.fillStyle='#ffe17a';x.fillText(String(r.score),1330,y);x.textAlign='left';});
   if(!rows.length){x.fillStyle='#8196ad';x.fillText('VÄNTAR PÅ SPELARE…',610,230);}
@@ -602,9 +630,21 @@ function createCornerHud(){
   });
   refreshRoomHuds();
 }
-function refreshRoomHuds(){
+function refreshRoomHuds(force=false){
   if(!state||!state.hudPlanes)return;
-  state.hudPlanes.forEach(plane=>applyTexture(plane,makeHudTexture()));
+  const now=performance.now();
+  if(!force&&!multiplayer.hudDirty&&now-multiplayer.lastHudRefresh<1000)return;
+  if(!force&&now-multiplayer.lastHudRefresh<750)return;
+  multiplayer.lastHudRefresh=now;multiplayer.hudDirty=false;
+  const texture=makeHudTexture();
+  state.hudPlanes.forEach(plane=>{
+    const mesh=plane.getObject3D('mesh');
+    if(mesh&&mesh.material){
+      const old=mesh.material.map;
+      mesh.material.map=texture;mesh.material.needsUpdate=true;
+      if(old&&old!==texture)old.dispose();
+    }else applyTexture(plane,texture);
+  });
 }
 
 function updateStatus(){
@@ -632,7 +672,7 @@ function updateStatus(){
 
   const loose=state.cubes.filter(c=>c.dataset.used==='loose'||c.dataset.used==='held').length;
   if(!state.gameOver)document.getElementById('tip').textContent=
-    `${state.complete.size}/20 klara • ${loose} flytande bokstavskuber • rätt bokstav blir grön och låst`;
+    `${state.complete.size}/20 klara • ${loose} bokstavskuber • rätt bokstav sparas, blir grön och låses`;
 }
 function worldPos(el){const v=new THREE.Vector3();el.object3D.getWorldPosition(v);return v}
 function nearestSlot(pos,max=.8){
@@ -805,12 +845,12 @@ function placeCube(cube,slot){
   cube.object3D.position.copy(lp);cube.object3D.quaternion.copy(pq.invert().multiply(sq));cube.object3D.scale.set(.88,.88,.55);syncTransform(cube);
   setSlotVisual(slot,correct?'correct':'wrong');
   if(correct){tone(760,.10,'triangle',.045);tone(980,.12,'sine',.03,.05);}else sfx('wrong');
-  checkWord(slot.dataset.wordkey);updateStatus();sendGameState(correct?'correct-letter':'wrong-letter');
+  checkWord(slot.dataset.wordkey);multiplayer.hudDirty=true;updateStatus();sendGameState(correct?'correct-letter-saved':'wrong-letter');
   return true;
 }
 
 function fireworkAt(position,color='#59e6ff'){
-  const count=28;
+  const count=16;
   for(let i=0;i<count;i++){
     const p=document.createElement('a-sphere');
     p.setAttribute('radius','.035');
@@ -876,41 +916,13 @@ function showGameOver(){
   state.restartButton=restart;
 }
 
-function triggerGameOver(reason='FARA'){
-  if(state.gameOver)return;
-  state.gameOver=true;
-  state.paused=true;
-  state.jetpack=false;
-  state.verticalVelocity=0;
-  stopJetSound();
-  if(state.held)releaseCube(true);
-  state.projectiles.forEach(p=>p.el?.remove());
-  state.projectiles.length=0;
-  [110,92,73].forEach((f,i)=>tone(f,.4,'sawtooth',.06,i*.14));
-  document.getElementById('tip').textContent=`GAME OVER — ${reason}`;
-  showGameOver();
-}
+function triggerGameOver(reason='FARA'){return;}
 function playerWorldPosition(){
   const v=new THREE.Vector3();
   document.getElementById('camera').object3D.getWorldPosition(v);
   return v;
 }
-function checkHazardTouch(){
-  if(!state||state.gameOver||state.paused)return;
-  const points=[
-    playerWorldPosition(),
-    worldPos(document.getElementById('left')),
-    worldPos(document.getElementById('right'))
-  ];
-  const lethalCenterDistance=.32;
-  for(const hazard of state.hazards){
-    const hp=worldPos(hazard);
-    if(points.some(p=>p.distanceTo(hp)<lethalCenterDistance)){
-      triggerGameOver('RÖD KUB');
-      return;
-    }
-  }
-}
+function checkHazardTouch(){return;}
 
 function checkWord(wordKey){
   const slots=slotsForWord(wordKey);if(!slots.length)return;
@@ -1333,7 +1345,7 @@ AFRAME.registerComponent('locomotion',{
      rig.position.y=floorY;
      state.verticalVelocity=0;
      if(!wasGrounded&&impact>10.0&&!state.gameOver){
-       triggerGameOver(`FÖR HÅRD LANDNING ${impact.toFixed(1)} m/s`);
+       // Odödligt läge: hårda landningar bromsas men avslutar aldrig spelet.
      }
    }
 
@@ -1360,7 +1372,7 @@ function reset(){
   // Exactly one cube for every required letter across all 20 words.
   const letters=seededShuffle(WORDS.map(word=>word.en).join('').split(''),multiplayer.room);
   letters.forEach(createCube);
-  for(let i=0;i<3;i++)createHazardCube(i);
+  // Odödligt läge: inga dödliga röda kuber skapas.
   updateStatus();
   setTimeout(()=>{if(state&&state.cubes.length){document.getElementById('tip').textContent+=' • ZERO-G AKTIV';}},700);
 }

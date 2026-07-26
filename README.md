@@ -11,3 +11,11 @@
 
 ## Uppdatera
 Ladda upp och ersätt filerna i samma GitHub-repository. Cloudflare bygger automatiskt.
+
+
+## v29
+- Sparar i Durable Object efter varje korrekt bokstav.
+- +1 poäng per ny korrekt bokstav och +10 bonus per färdigt ord.
+- Odödligt läge: inga röda dödskuber och ingen död vid hård landning.
+- Tydligare färgkodade spelarfigurer med visor, kropp, ben, händer och namnskylt.
+- Lägre posefrekvens, ingen pose-echo, HUD-throttling och färre fyrverkspartiklar för bättre Quest-prestanda.

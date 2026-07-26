@@ -65,15 +65,26 @@ export class GameRoom extends DurableObject {
     game.scores[playerId].name = name;
 
     if (data.type === "pose" && data.pose) {
-      await this.broadcast({ type: "pose", playerId, pose: data.pose });
+      await this.broadcastExcept(ws, { type: "pose", playerId, pose: data.pose });
       return;
     }
 
     if (data.type === "state" && data.state) {
       const oldComplete = new Set(game.complete || []);
+      const oldLocked = new Set((game.slots || []).filter(s => s && s.locked === true).map(s => `${s.wordkey}:${s.index}`));
+      const nextSlots = Array.isArray(data.state.slots) ? data.state.slots.slice(0, 200) : game.slots;
       const nextComplete = Array.isArray(data.state.complete) ? [...new Set(data.state.complete.filter(v => typeof v === "string"))] : [];
-      for (const key of nextComplete) if (!oldComplete.has(key)) game.scores[playerId].score += 1;
-      game.slots = Array.isArray(data.state.slots) ? data.state.slots.slice(0, 200) : game.slots;
+
+      let newCorrectLetters = 0;
+      for (const slot of nextSlots) {
+        if (!slot || slot.locked !== true) continue;
+        const key = `${slot.wordkey}:${slot.index}`;
+        if (!oldLocked.has(key)) newCorrectLetters += 1;
+      }
+      let newWords = 0;
+      for (const key of nextComplete) if (!oldComplete.has(key)) newWords += 1;
+      game.scores[playerId].score += newCorrectLetters + newWords * 10;
+      game.slots = nextSlots;
       game.complete = nextComplete;
       await this.ctx.storage.put("game", game);
       await this.broadcast({ type: "state", players: this.playerObject(), scores: game.scores, state: { slots: game.slots, complete: game.complete } });
@@ -106,6 +117,14 @@ export class GameRoom extends DurableObject {
 
   async broadcastPresence(game) {
     await this.broadcast({ type: "presence", players: this.playerObject(), scores: game.scores || {} });
+  }
+
+  async broadcastExcept(sender, payload) {
+    const text = JSON.stringify(payload);
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === sender) continue;
+      try { ws.send(text); } catch {}
+    }
   }
 
   async broadcast(payload) {
