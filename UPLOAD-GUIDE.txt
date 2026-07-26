@@ -1,0 +1,16 @@
+LADDA UPP TILL GITHUB
+
+Ladda upp exakt dessa saker direkt i repots rot:
+
+public
+src
+package.json
+wrangler.jsonc
+README.md
+UPLOAD-GUIDE.txt
+
+Cloudflare:
+Build command: npm install
+Deploy command: npx wrangler deploy
+Root directory: tomt
+Production branch: main

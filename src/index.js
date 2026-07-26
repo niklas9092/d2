@@ -64,6 +64,11 @@ export class GameRoom extends DurableObject {
     game.scores[playerId] ||= { name, score: 0 };
     game.scores[playerId].name = name;
 
+    if (data.type === "pose" && data.pose) {
+      await this.broadcast({ type: "pose", playerId, pose: data.pose });
+      return;
+    }
+
     if (data.type === "state" && data.state) {
       const oldComplete = new Set(game.complete || []);
       const nextComplete = Array.isArray(data.state.complete) ? [...new Set(data.state.complete.filter(v => typeof v === "string"))] : [];

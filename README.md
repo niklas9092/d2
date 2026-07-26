@@ -1,12 +1,13 @@
-# Djurbyggaren Cloudflare Multiplayer v27
+# Djurbyggaren Cloudflare Multiplayer v28
 
-Ladda upp alla filer i repots rot. Cloudflare Workers kör både spelet och WebSocket-rummen.
+## Nytt
+- Tema 1: Skog & mark
+- Tema 2: Hav & kust
+- Rätt bokstav blir grön och låses direkt
+- Fel bokstav blir röd och kan tas bort
+- Större väggtavlor med spelare och poäng
+- Enkla nätverksfigurer med huvud, kropp, händer och buren bokstav
+- Förbättrade canvasfonter med automatisk storleksanpassning
 
-## Cloudflare
-- Importera GitHub-repot som Worker.
-- Build command: `npm install`
-- Deploy command: `npm run deploy`
-- Root directory: tomt
-- Production branch: `main`
-
-Öppna samma workers.dev-adress i båda headseten, välj olika namn och samma rumskod.
+## Uppdatera
+Ladda upp och ersätt filerna i samma GitHub-repository. Cloudflare bygger automatiskt.

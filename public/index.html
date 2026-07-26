@@ -112,28 +112,28 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 
 <script>
 const ANIMAL_WORDS=[
-  {sv:'ÄLG',en:'MOOSE'},
-  {sv:'RÄV',en:'FOX'},
-  {sv:'BJÖRN',en:'BEAR'},
-  {sv:'VARG',en:'WOLF'},
-  {sv:'HARE',en:'HARE'},
-  {sv:'SÄL',en:'SEAL'},
-  {sv:'ÖRN',en:'EAGLE'},
-  {sv:'UGGLA',en:'OWL'},
-  {sv:'KATT',en:'CAT'},
-  {sv:'HUND',en:'DOG'}
+  {sv:'GRÄVLING',en:'BADGER'},
+  {sv:'IGELKOTT',en:'HEDGEHOG'},
+  {sv:'UTTER',en:'OTTER'},
+  {sv:'LO',en:'LYNX'},
+  {sv:'VILDSVIN',en:'WILDBOAR'},
+  {sv:'BÄVER',en:'BEAVER'},
+  {sv:'TVÄTTBJÖRN',en:'RACCOON'},
+  {sv:'EKORRE',en:'SQUIRREL'},
+  {sv:'MÅRD',en:'MARTEN'},
+  {sv:'JÄRV',en:'WOLVERINE'}
 ];
 const NATURE_WORDS=[
-  {sv:'TRÄD',en:'TREE'},
-  {sv:'STEN',en:'STONE'},
-  {sv:'MOLN',en:'CLOUD'},
-  {sv:'REGN',en:'RAIN'},
-  {sv:'SNÖ',en:'SNOW'},
-  {sv:'SOL',en:'SUN'},
-  {sv:'HAV',en:'SEA'},
-  {sv:'ÄNG',en:'MEADOW'},
-  {sv:'BÄCK',en:'BROOK'},
-  {sv:'FJÄLL',en:'MOUNTAIN'}
+  {sv:'BLÄCKFISK',en:'OCTOPUS'},
+  {sv:'MANET',en:'JELLYFISH'},
+  {sv:'SJÖHÄST',en:'SEAHORSE'},
+  {sv:'ROCKA',en:'STINGRAY'},
+  {sv:'DELFIN',en:'DOLPHIN'},
+  {sv:'HAJ',en:'SHARK'},
+  {sv:'VALROSS',en:'WALRUS'},
+  {sv:'SJÖLEJON',en:'SEALION'},
+  {sv:'HAVSSKÖLDPADDA',en:'SEATURTLE'},
+  {sv:'SÄL',en:'SEAL'}
 ];
 const WORDS=[...ANIMAL_WORDS,...NATURE_WORDS];
 const ALPHABET='ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ';
@@ -144,7 +144,7 @@ let state;
 let audioCtx=null;
 const multiplayer={
   socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
-  scores:{},players:{},applying:false,reconnectTimer:null,intentionalClose:false
+  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0
 };
 
 
@@ -194,15 +194,13 @@ function sendGameState(reason='update'){
 }
 function handleServerMessage(message){
   if(message.type==='welcome'){
-    multiplayer.playerId=message.playerId;multiplayer.players=message.players||{};multiplayer.scores=message.scores||{};
+    multiplayer.playerId=message.playerId;multiplayer.players=message.players||{};multiplayer.scores=message.scores||{};removeMissingAvatars();
     renderMultiplayerStatus();if(message.state)applyAuthoritativeState(message.state);return;
   }
-  if(message.type==='presence'){
-    multiplayer.players=message.players||{};multiplayer.scores=message.scores||multiplayer.scores;renderMultiplayerStatus();return;
-  }
+  if(message.type==='presence'){multiplayer.players=message.players||{};multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();return;}
+  if(message.type==='pose'){updateRemoteAvatar(message.playerId,(multiplayer.players[message.playerId]||{}).name,message.pose);return;}
   if(message.type==='state'){
-    multiplayer.players=message.players||multiplayer.players;multiplayer.scores=message.scores||multiplayer.scores;
-    renderMultiplayerStatus();applyAuthoritativeState(message.state);return;
+    multiplayer.players=message.players||multiplayer.players;multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();applyAuthoritativeState(message.state);return;
   }
   if(message.type==='reset'){
     multiplayer.scores=message.scores||{};reset();renderMultiplayerStatus();
@@ -232,15 +230,57 @@ function applyAuthoritativeState(remoteState){
       cube.object3D.position.copy(lp);cube.object3D.quaternion.copy(pq.invert().multiply(sq));cube.object3D.scale.set(.88,.88,.55);syncTransform(cube);
     });
     state.complete=new Set(remoteState.complete||[]);
-    [...new Set(state.slots.map(s=>s.dataset.wordkey))].forEach(key=>{
-      const slots=slotsForWord(key);
-      if(state.complete.has(key)){slots.forEach(s=>{s.dataset.locked='true';setSlotVisual(s,'correct');});}
-      else if(slots.every(s=>s.dataset.filled==='true'))setWordVisual(key,getWordAttempt(key)===slots[0].dataset.target?'correct':'wrong');
-      else setWordVisual(key,'incomplete');
+    state.slots.forEach(slot=>{
+      if(slot.dataset.filled!=='true')setSlotVisual(slot,'incomplete');
+      else setSlotVisual(slot,slot.dataset.locked==='true'?'correct':'wrong');
     });
     updateStatus();
   }finally{multiplayer.applying=false;}
 }
+
+
+function vecToArray(v){return [Number(v.x.toFixed(3)),Number(v.y.toFixed(3)),Number(v.z.toFixed(3))];}
+function quatToArray(q){return [Number(q.x.toFixed(4)),Number(q.y.toFixed(4)),Number(q.z.toFixed(4)),Number(q.w.toFixed(4))];}
+function sendPose(){
+  if(!multiplayer.connected||!state)return;
+  const now=performance.now();if(now-multiplayer.lastPoseAt<90)return;multiplayer.lastPoseAt=now;
+  const camera=document.getElementById('camera'),left=document.getElementById('left'),right=document.getElementById('right');
+  if(!camera||!left||!right)return;
+  const hp=new THREE.Vector3(),hq=new THREE.Quaternion(),lp=new THREE.Vector3(),lq=new THREE.Quaternion(),rp=new THREE.Vector3(),rq=new THREE.Quaternion();
+  camera.object3D.getWorldPosition(hp);camera.object3D.getWorldQuaternion(hq);left.object3D.getWorldPosition(lp);left.object3D.getWorldQuaternion(lq);right.object3D.getWorldPosition(rp);right.object3D.getWorldQuaternion(rq);
+  let heldLetter='',heldHand='';
+  if(state.held){heldLetter=state.held.dataset.letter||'';heldHand=state.heldBy&&state.heldBy.id?state.heldBy.id:'';}
+  sendMessage({type:'pose',pose:{head:vecToArray(hp),headQ:quatToArray(hq),left:vecToArray(lp),leftQ:quatToArray(lq),right:vecToArray(rp),rightQ:quatToArray(rq),heldLetter,heldHand}});
+}
+function avatarColor(id){let h=0;for(const ch of id)h=(h*31+ch.charCodeAt(0))>>>0;return COLORS[h%COLORS.length];}
+function createRemoteAvatar(id,name){
+  if(multiplayer.avatars[id])return multiplayer.avatars[id];
+  const root=document.createElement('a-entity');root.id=`avatar-${id}`;
+  const color=avatarColor(id);
+  const head=document.createElement('a-sphere');head.setAttribute('radius','.22');head.setAttribute('material',`color:${color};emissive:${color};emissiveIntensity:.28;roughness:.45`);root.appendChild(head);
+  const body=document.createElement('a-box');body.setAttribute('width','.42');body.setAttribute('height','.62');body.setAttribute('depth','.22');body.setAttribute('position','0 -.52 0');body.setAttribute('material',`color:${color};roughness:.65`);root.appendChild(body);
+  const label=planeLabel(name||'SPELARE',[0,.42,0],1.6,.3,'rgba(5,15,28,.88)','#ffffff',112);root.appendChild(label);
+  const left=document.createElement('a-sphere');left.setAttribute('radius','.095');left.setAttribute('material',`color:${color};emissive:${color};emissiveIntensity:.35`);game.appendChild(left);
+  const right=document.createElement('a-sphere');right.setAttribute('radius','.095');right.setAttribute('material',`color:${color};emissive:${color};emissiveIntensity:.35`);game.appendChild(right);
+  const letter=document.createElement('a-box');letter.setAttribute('width','.34');letter.setAttribute('height','.34');letter.setAttribute('depth','.34');letter.setAttribute('visible','false');game.appendChild(letter);
+  game.appendChild(root);
+  const avatar={root,head,left,right,letter,name};multiplayer.avatars[id]=avatar;return avatar;
+}
+function updateRemoteAvatar(id,name,pose){
+  if(id===multiplayer.playerId||!pose)return;
+  const a=createRemoteAvatar(id,name);
+  const setTransform=(el,p,q)=>{if(p)el.object3D.position.fromArray(p);if(q)el.object3D.quaternion.fromArray(q);};
+  setTransform(a.root,pose.head,pose.headQ);setTransform(a.left,pose.left,pose.leftQ);setTransform(a.right,pose.right,pose.rightQ);
+  if(pose.heldLetter){
+    const hand=pose.heldHand==='left'?a.left:a.right;
+    a.letter.setAttribute('visible','true');a.letter.object3D.position.copy(hand.object3D.position);a.letter.object3D.quaternion.copy(hand.object3D.quaternion);a.letter.object3D.position.y-=.03;
+    if(a.letter.dataset.letter!==pose.heldLetter){a.letter.dataset.letter=pose.heldLetter;addCubeFaces(a.letter,pose.heldLetter);}
+  }else a.letter.setAttribute('visible','false');
+}
+function removeMissingAvatars(){
+  for(const [id,a] of Object.entries(multiplayer.avatars))if(!multiplayer.players[id]){a.root.remove();a.left.remove();a.right.remove();a.letter.remove();delete multiplayer.avatars[id];}
+}
+setInterval(sendPose,100);
 
 function audio(){
   if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
@@ -266,18 +306,26 @@ function sfx(kind){
 function makeCanvas(text,bg='#ffffff',fg='#142744',w=512,h=512,fontPx=300,sub=''){
   const c=document.createElement('canvas');c.width=w;c.height=h;
   const x=c.getContext('2d');
+  x.clearRect(0,0,w,h);
   x.fillStyle=bg;x.fillRect(0,0,w,h);
-  x.strokeStyle='#ffffffaa';x.lineWidth=Math.max(8,w*.025);x.strokeRect(10,10,w-20,h-20);
+  x.strokeStyle='rgba(255,255,255,.35)';x.lineWidth=Math.max(4,w*.012);x.strokeRect(8,8,w-16,h-16);
   x.textAlign='center';x.textBaseline='middle';
-  x.fillStyle=fg;x.font=`900 ${fontPx}px Arial, sans-serif`;
-  x.fillText(text,w/2,sub?h*.43:h*.53);
+  const family='"Arial Rounded MT Bold","Trebuchet MS",Verdana,Arial,sans-serif';
+  const fit=(value,maxPx,maxWidth)=>{
+    let px=maxPx;
+    do{x.font=`900 ${px}px ${family}`;if(x.measureText(value).width<=maxWidth)break;px-=4;}while(px>24);
+    return px;
+  };
+  const mainY=sub?h*.40:h*.52;
+  const mainPx=fit(String(text),fontPx,w*.86);
+  x.font=`900 ${mainPx}px ${family}`;
+  x.lineJoin='round';x.lineWidth=Math.max(2,mainPx*.035);x.strokeStyle='rgba(0,0,0,.18)';
+  x.strokeText(String(text),w/2,mainY);x.fillStyle=fg;x.fillText(String(text),w/2,mainY);
   if(sub){
-    x.font=`800 ${Math.round(h*.14)}px Arial, sans-serif`;
-    x.fillStyle='#536887';x.fillText(sub,w/2,h*.78);
+    const subPx=fit(String(sub),Math.round(h*.14),w*.86);
+    x.font=`800 ${subPx}px ${family}`;x.fillStyle='#7890ac';x.fillText(String(sub),w/2,h*.77);
   }
-  const t=new THREE.CanvasTexture(c);
-  t.colorSpace=THREE.SRGBColorSpace;
-  t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;
   return t;
 }
 function applyTexture(el,tex){
@@ -447,6 +495,7 @@ function createStation(entry,i,roomIndex){
     );
     slot.dataset.wordkey=wordKey;
     slot.dataset.target=target;
+    slot.dataset.expected=target[j];
     slot.dataset.index=j;
     slot.dataset.filled='false';
     slot.dataset.locked='false';
@@ -472,8 +521,8 @@ function createDecor(){
     game.appendChild(box([-19.82,10,i],[.08,18,.08],'#1b5874'));
   }
 
-  game.appendChild(planeLabel('DJURRUMMET ZERO-G',[0,12.5,-19.75],10,1.4,'#0c1d35','#ffffff',104));
-  game.appendChild(planeLabel('SVENSKA SKYLTAR • ENGELSKA ORDBLOCK',[0,11.2,-19.74],11,.62,'#0c1d35','#59e6d4',66));
+  game.appendChild(planeLabel('SKOG & MARK',[0,12.5,-19.75],10,1.4,'#0c1d35','#ffffff',104));
+  game.appendChild(planeLabel('LÄR DIG DJUREN PÅ ENGELSKA',[0,11.2,-19.74],11,.62,'#0c1d35','#59e6d4',66));
 
   // Nature room: stylized trunks, canopies, rocks, and glowing vines.
   for(let i=0;i<14;i++){
@@ -499,8 +548,8 @@ function createDecor(){
     game.appendChild(rock);
   }
 
-  game.appendChild(planeLabel('NATURRUMMET ZERO-G',[42,12.5,-19.75],10,1.4,'#173122','#e9ffe5',104));
-  game.appendChild(planeLabel('10 NATURORD • ENGLSKA ORDBLOCK I BÅDA RUMMEN',[42,11.2,-19.74],10,.62,'#173122','#aaff9b',70));
+  game.appendChild(planeLabel('HAV & KUST',[42,12.5,-19.75],10,1.4,'#173122','#e9ffe5',104));
+  game.appendChild(planeLabel('HAVSDJUR • ENGELSKA ORDBLOCK I BÅDA RUMMEN',[42,11.2,-19.74],10,.62,'#173122','#aaff9b',70));
 
   // Doorway frame and guiding lights.
   game.appendChild(box([20,3.5,-3.15],[.35,7,.25],'#42d8ff'));
@@ -517,40 +566,36 @@ function createHud(){
 }
 
 function makeHudTexture(){
-  const c=document.createElement('canvas');c.width=1024;c.height=520;
-  const x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);
-  x.textAlign='right';x.textBaseline='top';
-  x.font='800 72px Arial, sans-serif';
-
+  const c=document.createElement('canvas');c.width=1400;c.height=900;const x=c.getContext('2d');
+  x.clearRect(0,0,c.width,c.height);x.textBaseline='top';
+  const family='"Arial Rounded MT Bold","Trebuchet MS",Verdana,Arial,sans-serif';
+  x.fillStyle='rgba(4,15,29,.92)';x.fillRect(0,0,c.width,c.height);
+  x.strokeStyle='rgba(91,229,255,.65)';x.lineWidth=10;x.strokeRect(12,12,c.width-24,c.height-24);
+  x.font=`900 86px ${family}`;x.fillStyle='#eafcff';x.fillText('MULTIPLAYER',55,42);
   const sec=Math.floor((Date.now()-state.start)/1000);
-  const speed=(state.lastMeasuredSpeed||0).toFixed(1);
-  const lines=[
-    [`FART  ${speed} m/s`,'#6eeaff'],
-    [`TID   ${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`,'#ffffff'],
-    [`KLARA ${state.complete.size}`,'#61e3ba'],
-    [`KVAR  ${WORDS.length-state.complete.size}`,'#ffd45b'],
-    [`DU    ${((multiplayer.scores[multiplayer.playerId]||{}).score||0)} POÄNG`,'#ff9de1']
-  ];
-  lines.forEach(([textValue,color],i)=>{
-    x.fillStyle='rgba(0,0,0,.42)';
-    x.fillText(textValue,994,20+i*96);
-    x.fillStyle=color;
-    x.fillText(textValue,986,12+i*96);
-  });
-  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;return tex;
+  x.font=`800 52px ${family}`;x.fillStyle='#78eaff';x.fillText(`RUM ${multiplayer.room}`,58,150);
+  x.fillStyle='#ffffff';x.fillText(`TID ${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`,58,220);
+  x.fillStyle='#69efb9';x.fillText(`ORD ${state.complete.size} / ${WORDS.length}`,58,290);
+  x.fillStyle='#ffd66f';x.fillText(`SPELARE ${Object.keys(multiplayer.players).length}`,58,360);
+  x.font=`900 54px ${family}`;x.fillStyle='#ffffff';x.fillText('POÄNG',610,150);
+  const rows=Object.entries(multiplayer.scores).map(([id,v])=>({id,name:(multiplayer.players[id]&&multiplayer.players[id].name)||v.name||'SPELARE',score:Number(v.score)||0})).sort((a,b)=>b.score-a.score||a.name.localeCompare(b.name)).slice(0,8);
+  x.font=`800 48px ${family}`;
+  rows.forEach((r,i)=>{const y=230+i*76;x.fillStyle=r.id===multiplayer.playerId?'#ff9de1':'#d9efff';x.fillText(`${i+1}. ${r.name}`,610,y);x.textAlign='right';x.fillStyle='#ffe17a';x.fillText(String(r.score),1330,y);x.textAlign='left';});
+  if(!rows.length){x.fillStyle='#8196ad';x.fillText('VÄNTAR PÅ SPELARE…',610,230);}
+  const tex=new THREE.CanvasTexture(c);tex.colorSpace=THREE.SRGBColorSpace;tex.minFilter=THREE.LinearFilter;tex.magFilter=THREE.LinearFilter;return tex;
 }
 function createCornerHud(){
   state.hudPlanes=[];
   [
-    {pos:[8.5,16.0,-19.72],rot:'0 0 0'},
-    {pos:[50.5,16.0,-19.72],rot:'0 0 0'}
+    {pos:[8.5,15.1,-19.72],rot:'0 0 0'},
+    {pos:[50.5,15.1,-19.72],rot:'0 0 0'}
   ].forEach((cfg,index)=>{
     const plane=document.createElement('a-plane');
     plane.id=`roomHud${index}`;
     plane.setAttribute('position',cfg.pos.join(' '));
     plane.setAttribute('rotation',cfg.rot);
-    plane.setAttribute('width','4.2');
-    plane.setAttribute('height','2.1');
+    plane.setAttribute('width','7.2');
+    plane.setAttribute('height','4.6');
     plane.setAttribute('material','shader:flat;transparent:true;side:double');
     game.appendChild(plane);
     state.hudPlanes.push(plane);
@@ -587,7 +632,7 @@ function updateStatus(){
 
   const loose=state.cubes.filter(c=>c.dataset.used==='loose'||c.dataset.used==='held').length;
   if(!state.gameOver)document.getElementById('tip').textContent=
-    `${state.complete.size}/20 klara • ${loose} flytande bokstavskuber • svenska skyltar, engelska ord`;
+    `${state.complete.size}/20 klara • ${loose} flytande bokstavskuber • rätt bokstav blir grön och låst`;
 }
 function worldPos(el){const v=new THREE.Vector3();el.object3D.getWorldPosition(v);return v}
 function nearestSlot(pos,max=.8){
@@ -620,14 +665,9 @@ function cubeById(id){
 function setSlotVisual(slot,mode){
   const defaultColor=slot.dataset.defaultColor||'#071426';
   const defaultEmissive=slot.dataset.defaultEmissive||'#1b385f';
-  if(mode==='correct'){
-    slot.setAttribute('material','color:#11422b;roughness:.4;metalness:.18;emissive:#4cff9e;emissiveIntensity:.9');
-  }else if(mode==='wrong'){
-    slot.setAttribute('material','color:#4a1717;roughness:.45;metalness:.15;emissive:#ff5757;emissiveIntensity:.9');
-  }else{
-    slot.setAttribute('material',
-      `color:${defaultColor};roughness:.5;metalness:.12;emissive:${defaultEmissive};emissiveIntensity:.35`);
-  }
+  if(mode==='correct')slot.setAttribute('material','color:#0c5a34;roughness:.34;metalness:.18;emissive:#52ff9b;emissiveIntensity:1.05');
+  else if(mode==='wrong')slot.setAttribute('material','color:#5a151b;roughness:.42;metalness:.12;emissive:#ff4d61;emissiveIntensity:.95');
+  else slot.setAttribute('material',`color:${defaultColor};roughness:.5;metalness:.12;emissive:${defaultEmissive};emissiveIntensity:.35`);
 }
 function setWordVisual(wordKey,mode){
   slotsForWord(wordKey).forEach(slot=>setSlotVisual(slot,mode));
@@ -754,29 +794,18 @@ function returnHome(cube,wrong=false){
 function placeCube(cube,slot){
   if(!cube||!slot||slot.dataset.filled==='true'||slot.dataset.locked==='true')return false;
   if(cube.dataset.used==='placed')return false;
-
-  slot.dataset.filled='true';
-  slot.dataset.cube=cube.dataset.id;
+  slot.dataset.filled='true';slot.dataset.cube=cube.dataset.id;
+  const correct=cube.dataset.letter===slot.dataset.expected;
+  slot.dataset.locked=correct?'true':'false';
   setCubeState(cube,'placed');
-  cube.removeAttribute('animation__return');
-  cube.removeAttribute('animation__celebrate');
-  game.object3D.attach(cube.object3D);
-
-  const worldPosition=worldPos(slot);
-  const localPosition=game.object3D.worldToLocal(worldPosition.clone());
-  const slotWorldQ=slot.object3D.getWorldQuaternion(new THREE.Quaternion());
-  const parentWorldQ=game.object3D.getWorldQuaternion(new THREE.Quaternion());
-  const localQ=parentWorldQ.invert().multiply(slotWorldQ);
-
-  cube.object3D.position.copy(localPosition);
-  cube.object3D.quaternion.copy(localQ);
-  cube.object3D.scale.set(.88,.88,.55);
-  syncTransform(cube);
-
-  sfx('place');
-  checkWord(slot.dataset.wordkey);
-  updateStatus();
-  sendGameState('place');
+  cube.removeAttribute('animation__return');cube.removeAttribute('animation__celebrate');game.object3D.attach(cube.object3D);
+  const wp=worldPos(slot),lp=game.object3D.worldToLocal(wp.clone());
+  const sq=slot.object3D.getWorldQuaternion(new THREE.Quaternion());
+  const pq=game.object3D.getWorldQuaternion(new THREE.Quaternion());
+  cube.object3D.position.copy(lp);cube.object3D.quaternion.copy(pq.invert().multiply(sq));cube.object3D.scale.set(.88,.88,.55);syncTransform(cube);
+  setSlotVisual(slot,correct?'correct':'wrong');
+  if(correct){tone(760,.10,'triangle',.045);tone(980,.12,'sine',.03,.05);}else sfx('wrong');
+  checkWord(slot.dataset.wordkey);updateStatus();sendGameState(correct?'correct-letter':'wrong-letter');
   return true;
 }
 
@@ -884,47 +913,14 @@ function checkHazardTouch(){
 }
 
 function checkWord(wordKey){
-  const slots=slotsForWord(wordKey);
-  if(!slots.length)return;
-  const isFull=slots.every(slot=>slot.dataset.filled==='true');
-
-  if(!isFull){
-    setWordVisual(wordKey,'incomplete');
-    return;
-  }
-
-  const attempt=getWordAttempt(wordKey);
-  const target=slots[0].dataset.target;
-
-  if(attempt===target){
-    if(!state.complete.has(wordKey)){
-      state.complete.add(wordKey);
-      setWordVisual(wordKey,'correct');
-      slots.forEach(slot=>slot.dataset.locked='true');
-      sfx('word');
-
-      const center=new THREE.Vector3();
-      slots.forEach(slot=>center.add(worldPos(slot)));
-      center.multiplyScalar(1/slots.length);
-      fireworkAt(center,COLORS[state.complete.size%COLORS.length]);
-
-      slots.forEach((slot,i)=>setTimeout(()=>{
-        const cube=cubeById(slot.dataset.cube);
-        if(cube){
-          cube.setAttribute('animation__celebrate',
-            'property:scale;from:.88 .88 .55;to:1.12 1.12 .7;dir:alternate;loop:2;dur:150;easing:easeOutQuad');
-        }
-      },i*55));
-
-      if(state.complete.size===WORDS.length){
-        sfx('win');
-        document.getElementById('tip').textContent='ALLA 20 ORD ÄR KLARA!';
-      }
-    }
-  }else{
-    setWordVisual(wordKey,'wrong');
-    sfx('wrong');
-  }
+  const slots=slotsForWord(wordKey);if(!slots.length)return;
+  if(!slots.every(slot=>slot.dataset.locked==='true'))return;
+  if(state.complete.has(wordKey))return;
+  state.complete.add(wordKey);sfx('word');
+  const center=new THREE.Vector3();slots.forEach(slot=>center.add(worldPos(slot)));center.multiplyScalar(1/slots.length);
+  fireworkAt(center,COLORS[state.complete.size%COLORS.length]);
+  slots.forEach((slot,i)=>setTimeout(()=>{const cube=cubeById(slot.dataset.cube);if(cube)cube.setAttribute('animation__celebrate','property:scale;from:.88 .88 .55;to:1.12 1.12 .7;dir:alternate;loop:2;dur:150;easing:easeOutQuad');},i*55));
+  if(state.complete.size===WORDS.length){sfx('win');document.getElementById('tip').textContent='ALLA 20 ORD ÄR KLARA!';}
 }
 function desktopGrab(cube){
   if(!cube||cube.dataset.used!=='loose')return;
