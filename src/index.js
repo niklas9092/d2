@@ -21,7 +21,7 @@ export class GameRoom extends DurableObject {
     this.players = new Map();
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment();
-      if (a?.playerId) this.players.set(a.playerId, { name: a.name || "SPELARE" });
+      if (a?.playerId) this.players.set(a.playerId, { name: a.name || "SPELARE", clientKey: a.clientKey || a.playerId });
     }
     this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
   }
@@ -29,13 +29,27 @@ export class GameRoom extends DurableObject {
   async fetch(request) {
     const url = new URL(request.url);
     const name = this.cleanName(url.searchParams.get("name"));
-    const playerId = crypto.randomUUID();
+    const clientKey = String(url.searchParams.get("client") || crypto.randomUUID()).slice(0,80);
+    for (const existing of this.ctx.getWebSockets()) {
+      const info = existing.deserializeAttachment() || {};
+      if ((info.name || '').toUpperCase() !== name.toUpperCase()) continue;
+      if (info.clientKey === clientKey) { try { existing.close(4001, 'Replaced by reconnect'); } catch {} }
+      else {
+        const pair = new WebSocketPair();
+        const [client, server] = Object.values(pair);
+        this.ctx.acceptWebSocket(server);
+        server.send(JSON.stringify({ type: 'join-error', message: `Namnet ${name} används redan i rummet.` }));
+        server.close(4009, 'Name already in use');
+        return new Response(null, { status: 101, webSocket: client });
+      }
+    }
+    const playerId = clientKey;
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
-    server.serializeAttachment({ playerId, name });
+    server.serializeAttachment({ playerId, name, clientKey });
     this.ctx.acceptWebSocket(server);
-    this.players.set(playerId, { name });
+    this.players.set(playerId, { name, clientKey });
 
     const game = (await this.ctx.storage.get("game")) || { slots: [], complete: [], scores: {} };
     game.scores[playerId] ||= { name, score: 0 };

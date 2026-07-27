@@ -109,6 +109,7 @@ const game=document.getElementById('game');
 let state;
 let audioCtx=null;
 const multiplayer={
+  clientKey:sessionStorage.getItem('djurClientKey')||crypto.randomUUID(),
   socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
   scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0
 };
@@ -133,7 +134,7 @@ function renderMultiplayerStatus(){
 }
 function socketUrl(){
   const protocol=location.protocol==='https:'?'wss:':'ws:';
-  return `${protocol}//${location.host}/ws/${encodeURIComponent(multiplayer.room)}?name=${encodeURIComponent(multiplayer.playerName)}`;
+  return `${protocol}//${location.host}/ws/${encodeURIComponent(multiplayer.room)}?name=${encodeURIComponent(multiplayer.playerName)}&client=${encodeURIComponent(multiplayer.clientKey)}`;
 }
 function connectMultiplayer(){
   if(multiplayer.socket){multiplayer.intentionalClose=true;try{multiplayer.socket.close()}catch(e){}}
@@ -160,9 +161,18 @@ function sendGameState(reason='update'){
   if(!multiplayer.applying)sendMessage({type:'state',reason,state:currentNetworkState()});
 }
 function handleServerMessage(message){
+  if(message.type==='join-error'){
+    multiplayer.intentionalClose=true;
+    multiplayer.connected=false;
+    document.getElementById('joinOverlay').style.display='flex';
+    document.getElementById('connectionText').textContent=message.message||'Namnet används redan';
+    alert(message.message||'Det namnet används redan i rummet.');
+    try{multiplayer.socket.close()}catch(e){}
+    return;
+  }
   if(message.type==='welcome'){
     multiplayer.playerId=message.playerId;multiplayer.players=message.players||{};multiplayer.scores=message.scores||{};removeMissingAvatars();
-    renderMultiplayerStatus();if(message.state)applyAuthoritativeState(message.state);return;
+    renderMultiplayerStatus();if(message.state)applyAuthoritativeState(message.state);multiplayer.lastPoseSignature='';multiplayer.lastPoseAt=0;sendPose();return;
   }
   if(message.type==='presence'){multiplayer.players=message.players||{};multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();return;}
   if(message.type==='pose'){updateRemoteAvatar(message.playerId,(multiplayer.players[message.playerId]||{}).name,message.pose);return;}
@@ -185,7 +195,7 @@ function applyAuthoritativeState(remoteState){
       slot.dataset.filled='false';slot.dataset.locked='false';delete slot.dataset.cube;setSlotVisual(slot,'incomplete');
     });
     (remoteState.slots||[]).forEach(item=>{
-      if(!item.filled)return;
+      if(!item.filled||!String(item.wordkey||'').startsWith('0-'))return;
       const slot=state.slots.find(s=>s.dataset.wordkey===item.wordkey&&Number(s.dataset.index)===Number(item.index));
       const cube=cubeById(item.cube);
       if(!slot||!cube||cube===state.held)return;
@@ -210,7 +220,7 @@ function vecToArray(v){return [Number(v.x.toFixed(3)),Number(v.y.toFixed(3)),Num
 function quatToArray(q){return [Number(q.x.toFixed(4)),Number(q.y.toFixed(4)),Number(q.z.toFixed(4)),Number(q.w.toFixed(4))];}
 function sendPose(){
   if(!multiplayer.connected||!state)return;
-  const now=performance.now();if(now-multiplayer.lastPoseAt<95)return;
+  const now=performance.now();if(now-multiplayer.lastPoseAt<80)return;
   const camera=document.getElementById('camera'),left=document.getElementById('left'),right=document.getElementById('right');
   if(!camera||!left||!right)return;
   const hp=new THREE.Vector3(),hq=new THREE.Quaternion(),lp=new THREE.Vector3(),lq=new THREE.Quaternion(),rp=new THREE.Vector3(),rq=new THREE.Quaternion();
@@ -223,7 +233,7 @@ function sendPose(){
   multiplayer.lastPoseAt=now;multiplayer.lastPoseSignature=signature;
   sendMessage({type:'pose',pose});
 }
-function avatarColor(id){let h=0;for(const ch of id)h=(h*31+ch.charCodeAt(0))>>>0;return COLORS[h%COLORS.length];}
+function avatarColor(id){let h=0;for(const ch of String(id||'SPELARE'))h=(h*31+ch.charCodeAt(0))>>>0;return COLORS[h%COLORS.length];}
 function avatarPart(tag,attrs,material){
   const el=document.createElement(tag);
   for(const [key,value] of Object.entries(attrs||{}))el.setAttribute(key,value);
@@ -233,29 +243,30 @@ function avatarPart(tag,attrs,material){
 function createRemoteAvatar(id,name){
   if(multiplayer.avatars[id])return multiplayer.avatars[id];
   const root=document.createElement('a-entity');root.id=`avatar-${id}`;
-  const color=avatarColor(id),dark='#102033';
-  const glow=`color:${color};emissive:${color};emissiveIntensity:.34;roughness:.38;metalness:.12`;
+  const color=avatarColor(name||id),dark='#102033';
+  const suit=`color:${color};emissive:${color};emissiveIntensity:.18;roughness:.48;metalness:.05`;
+  const skin='color:#f0c7a5;roughness:.72;metalness:0';
 
-  const head=avatarPart('a-sphere',{radius:'.285'},glow);root.appendChild(head);
-  const visor=avatarPart('a-sphere',{radius:'.19',position:'0 .015 -.145',scale:'1 .58 .22'},'color:#dffaff;emissive:#7cecff;emissiveIntensity:.48;metalness:.55;roughness:.18');root.appendChild(visor);
-  const neck=avatarPart('a-cylinder',{radius:'.105',height:'.14',position:'0 -.29 0'},glow);root.appendChild(neck);
-  const body=avatarPart('a-cylinder',{radius:'.31',height:'.82',position:'0 -.68 0'},glow);root.appendChild(body);
-  const chest=avatarPart('a-box',{width:'.38',height:'.18',depth:'.29',position:'0 -.53 -.07'},`color:${dark};emissive:${color};emissiveIntensity:.18;roughness:.45`);root.appendChild(chest);
-  const hips=avatarPart('a-sphere',{radius:'.22',position:'0 -1.05 0',scale:'1 .62 .75'},glow);root.appendChild(hips);
-  const legL=avatarPart('a-cylinder',{radius:'.075',height:'.55',position:'-.12 -1.38 0'},glow);root.appendChild(legL);
-  const legR=avatarPart('a-cylinder',{radius:'.075',height:'.55',position:'.12 -1.38 0'},glow);root.appendChild(legR);
-  const footL=avatarPart('a-box',{width:'.18',height:'.10',depth:'.30',position:'-.12 -1.68 -.08'},glow);root.appendChild(footL);
-  const footR=avatarPart('a-box',{width:'.18',height:'.10',depth:'.30',position:'.12 -1.68 -.08'},glow);root.appendChild(footR);
+  const head=avatarPart('a-sphere',{radius:'.23'},skin);root.appendChild(head);
+  const hair=avatarPart('a-sphere',{radius:'.238',position:'0 .07 .01',scale:'1 .58 1'},`color:${dark};roughness:.85`);root.appendChild(hair);
+  const face=avatarPart('a-plane',{width:'.24',height:'.12',position:'0 -.005 -.222'},'color:#fff4df;shader:flat');root.appendChild(face);
+  const body=avatarPart('a-cylinder',{radius:'.27',height:'.72',position:'0 -.62 0'},suit);root.appendChild(body);
+  const shoulders=avatarPart('a-box',{width:'.78',height:'.16',depth:'.28',position:'0 -.36 0'},suit);root.appendChild(shoulders);
+  const waist=avatarPart('a-cylinder',{radius:'.20',height:'.25',position:'0 -1.02 0'},suit);root.appendChild(waist);
+  const legL=avatarPart('a-cylinder',{radius:'.075',height:'.62',position:'-.13 -1.40 0'},suit);root.appendChild(legL);
+  const legR=avatarPart('a-cylinder',{radius:'.075',height:'.62',position:'.13 -1.40 0'},suit);root.appendChild(legR);
+  const footL=avatarPart('a-box',{width:'.19',height:'.11',depth:'.34',position:'-.13 -1.73 -.08'},`color:${dark};roughness:.7`);root.appendChild(footL);
+  const footR=avatarPart('a-box',{width:'.19',height:'.11',depth:'.34',position:'.13 -1.73 -.08'},`color:${dark};roughness:.7`);root.appendChild(footR);
 
-  const badge=planeLabel(name||'SPELARE',[0,.58,0],2.25,.44,'rgba(3,12,25,.94)',color,124);root.appendChild(badge);
-  const left=avatarPart('a-sphere',{radius:'.125'},glow);game.appendChild(left);
-  const right=avatarPart('a-sphere',{radius:'.125'},glow);game.appendChild(right);
-  const ringL=avatarPart('a-torus',{radius:'.16','radius-tubular':'.018',rotation:'90 0 0'},`color:${color};emissive:${color};emissiveIntensity:1.1;shader:flat`);left.appendChild(ringL);
-  const ringR=avatarPart('a-torus',{radius:'.16','radius-tubular':'.018',rotation:'90 0 0'},`color:${color};emissive:${color};emissiveIntensity:1.1;shader:flat`);right.appendChild(ringR);
-  const letter=avatarPart('a-box',{width:'.50',height:'.50',depth:'.50',visible:'false'},`color:${color};emissive:${color};emissiveIntensity:.25;roughness:.4`);game.appendChild(letter);
+  const badge=planeLabel(name||'SPELARE',[0,.46,0],2.25,.42,'rgba(3,12,25,.96)',color,112);root.appendChild(badge);
+  const left=avatarPart('a-sphere',{radius:'.115'},skin);game.appendChild(left);
+  const right=avatarPart('a-sphere',{radius:'.115'},skin);game.appendChild(right);
+  const armL=avatarPart('a-cylinder',{radius:'.055',height:'.7'},suit);game.appendChild(armL);
+  const armR=avatarPart('a-cylinder',{radius:'.055',height:'.7'},suit);game.appendChild(armR);
+  const letter=avatarPart('a-box',{width:'.50',height:'.50',depth:'.50',visible:'false'},`color:${color};emissive:${color};emissiveIntensity:.28;roughness:.38`);game.appendChild(letter);
   game.appendChild(root);
   const avatar={
-    root,head,left,right,letter,name,color,heldLetter:'',heldHand:'right',
+    root,head,left,right,armL,armR,letter,name,color,heldLetter:'',heldHand:'right',initialized:false,lastPoseAt:performance.now(),
     targetRootPos:new THREE.Vector3(),targetRootQuat:new THREE.Quaternion(),
     targetLeftPos:new THREE.Vector3(),targetLeftQuat:new THREE.Quaternion(),
     targetRightPos:new THREE.Vector3(),targetRightQuat:new THREE.Quaternion()
@@ -272,37 +283,54 @@ function updateRemoteAvatar(id,name,pose){
   setTarget('Root',pose.head,pose.headQ);
   setTarget('Left',pose.left,pose.leftQ);
   setTarget('Right',pose.right,pose.rightQ);
+  if(!a.initialized){
+    a.root.object3D.position.copy(a.targetRootPos);a.root.object3D.quaternion.copy(a.targetRootQuat);
+    a.left.object3D.position.copy(a.targetLeftPos);a.left.object3D.quaternion.copy(a.targetLeftQuat);
+    a.right.object3D.position.copy(a.targetRightPos);a.right.object3D.quaternion.copy(a.targetRightQuat);
+    a.initialized=true;
+  }
+  a.lastPoseAt=performance.now();
   a.heldLetter=pose.heldLetter||'';
   a.heldHand=pose.heldHand||'right';
 }
+function placeLimb(cylinder,start,end){
+  const mid=start.clone().add(end).multiplyScalar(.5);
+  const dir=end.clone().sub(start);
+  const len=Math.max(.05,dir.length());
+  cylinder.object3D.position.copy(mid);
+  cylinder.object3D.scale.set(1,len/.7,1);
+  cylinder.object3D.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
+}
 function smoothRemoteAvatars(){
-  const alpha=0.18;
+  const alpha=0.24;
+  const now=performance.now();
   for(const a of Object.values(multiplayer.avatars)){
-    const move=(el,p,q)=>{
-      if(p)el.object3D.position.lerp(p,alpha);
-      if(q)el.object3D.quaternion.slerp(q,alpha);
-    };
+    if(!a.initialized)continue;
+    const move=(el,p,q)=>{el.object3D.position.lerp(p,alpha);el.object3D.quaternion.slerp(q,alpha);};
     move(a.root,a.targetRootPos,a.targetRootQuat);
     move(a.left,a.targetLeftPos,a.targetLeftQuat);
     move(a.right,a.targetRightPos,a.targetRightQuat);
-    if(a.heldLetter){
+    const shoulderL=new THREE.Vector3(-.34,-.39,0).applyQuaternion(a.root.object3D.quaternion).add(a.root.object3D.position);
+    const shoulderR=new THREE.Vector3(.34,-.39,0).applyQuaternion(a.root.object3D.quaternion).add(a.root.object3D.position);
+    placeLimb(a.armL,shoulderL,a.left.object3D.position);
+    placeLimb(a.armR,shoulderR,a.right.object3D.position);
+    const visible=now-a.lastPoseAt<2200;
+    a.root.setAttribute('visible',visible);a.left.setAttribute('visible',visible);a.right.setAttribute('visible',visible);a.armL.setAttribute('visible',visible);a.armR.setAttribute('visible',visible);
+    if(visible&&a.heldLetter){
       const hand=a.heldHand==='left'?a.left:a.right;
       a.letter.setAttribute('visible','true');
-      a.letter.object3D.position.lerp(hand.object3D.position,.34);
-      a.letter.object3D.quaternion.slerp(hand.object3D.quaternion,.34);
-      if(a.letter.dataset.letter!==a.heldLetter){
-        a.letter.dataset.letter=a.heldLetter;
-        addCubeFaces(a.letter,a.heldLetter);
-      }
+      a.letter.object3D.position.lerp(hand.object3D.position,.42);
+      a.letter.object3D.quaternion.slerp(hand.object3D.quaternion,.42);
+      if(a.letter.dataset.letter!==a.heldLetter){a.letter.dataset.letter=a.heldLetter;addCubeFaces(a.letter,a.heldLetter);}
     }else a.letter.setAttribute('visible','false');
   }
   requestAnimationFrame(smoothRemoteAvatars);
 }
 requestAnimationFrame(smoothRemoteAvatars);
 function removeMissingAvatars(){
-  for(const [id,a] of Object.entries(multiplayer.avatars))if(!multiplayer.players[id]){a.root.remove();a.left.remove();a.right.remove();a.letter.remove();delete multiplayer.avatars[id];}
+  for(const [id,a] of Object.entries(multiplayer.avatars))if(!multiplayer.players[id]){a.root.remove();a.left.remove();a.right.remove();a.armL.remove();a.armR.remove();a.letter.remove();delete multiplayer.avatars[id];}
 }
-setInterval(sendPose,100);
+setInterval(sendPose,85);
 
 function audio(){
   if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
@@ -407,17 +435,15 @@ function addCubeFaces(cube,letter){
   });
 }
 function cubeSpawn(index,total){
-  // The complete mixed letter pool is distributed across both rooms.
-  const roomCenter=(index%2===0)?0:42;
-  const localIndex=Math.floor(index/2);
-  const cols=5,rows=4,layers=3;
-  const col=localIndex%cols;
-  const row=Math.floor(localIndex/cols)%rows;
-  const layer=Math.floor(localIndex/(cols*rows))%layers;
+  // Alla bokstäver skapas enbart i det kvarvarande djurrummet.
+  const cols=6, rows=4;
+  const col=index%cols;
+  const row=Math.floor(index/cols)%rows;
+  const layer=Math.floor(index/(cols*rows));
   return {
-    x:roomCenter-12+col*6+rand(-1.2,1.2),
-    y:2.0+layer*4.7+rand(-.8,.8),
-    z:-12+row*7.5+rand(-1.4,1.4),
+    x:-14.5+col*5.7+rand(-.65,.65),
+    y:2.0+(layer%4)*4.1+rand(-.45,.45),
+    z:-13.5+row*8.8+rand(-.75,.75),
     kind:'floating'
   };
 }
@@ -1121,7 +1147,7 @@ function stepZeroGPhysics(time,dtMs){
   if(!state||!state.physics||state.paused)return;
   const sec=Math.min(.04,Math.max(.001,(dtMs||16)/1000));
   const bodies=[...state.cubes,...state.hazards];
-  const minX=-19.1,maxX=61.1,minY=.32,maxY=19.1,minZ=-19.1,maxZ=19.1;
+  const minX=-18.35,maxX=18.35,minY=.32,maxY=18.6,minZ=-18.35,maxZ=18.35;
 
   for(const body of bodies){
     const phys=state.physics.get(body);
@@ -1380,13 +1406,8 @@ AFRAME.registerComponent('locomotion',{
      }
    }
 
-   rig.position.x=Math.max(-19.0,Math.min(61.0,rig.position.x));
-   rig.position.z=Math.max(-19.0,Math.min(19.0,rig.position.z));
-
-   const playerInDoor=Math.abs(rig.position.z)<=2.8 && rig.position.y<=6.8;
-   if(!playerInDoor && Math.abs(rig.position.x-20)<.5){
-     rig.position.x=rig.position.x<20?19.45:20.55;
-   }
+   rig.position.x=Math.max(-18.7,Math.min(18.7,rig.position.x));
+   rig.position.z=Math.max(-18.7,Math.min(18.7,rig.position.z));
  }
 });
 
