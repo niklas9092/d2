@@ -18,17 +18,48 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 #joinCard button{width:100%;margin-top:10px}
 #multiStatus{position:fixed;right:12px;top:12px;z-index:90;min-width:225px;padding:11px 14px;border-radius:14px;background:#061222e8;border:1px solid #5ee7ff55;color:white;font-weight:800;line-height:1.45}
 #multiStatus small{display:block;color:#75eaff;font-weight:700}
+
+#joinCard{width:min(720px,94vw);max-height:92vh;overflow:auto;padding:30px}
+#joinCard h1{font-size:34px;letter-spacing:.5px}
+#versionBadge{display:inline-block;margin:2px 0 12px;padding:5px 11px;border-radius:999px;background:#5ee7ff22;border:1px solid #5ee7ff66;color:#85efff;font-weight:900}
+#joinInfo{background:#061120;border:1px solid #ffffff1c;border-radius:14px;padding:13px 15px;margin:12px 0;color:#c9d9e9}
+#joinError{min-height:22px;margin-top:8px;color:#ff8eab;font-weight:900}
+#roomBrowser{margin-top:18px;padding-top:16px;border-top:1px solid #ffffff20}
+#roomBrowserHead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+#roomBrowser h2{font-size:20px;margin:0}
+#refreshRooms{width:auto;margin:0;padding:8px 13px;font-size:14px}
+#roomList{display:grid;gap:8px;margin-top:10px}
+.roomRow{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;background:#071426;border:1px solid #ffffff18;border-radius:12px;padding:10px 12px}
+.roomMeta{font-size:14px;color:#9fb4c9}
+.roomJoin,.roomDelete{width:auto;margin:0;padding:8px 12px;font-size:13px}
+.roomDelete{background:#71263a}
+.emptyRooms{color:#8fa5ba;padding:12px 2px}
+
 #tip{position:fixed;z-index:20;left:50%;bottom:14px;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:#06101ee8;color:#fff;font-weight:800;text-align:center;max-width:92vw}
 </style>
 </head>
 <body>
 <div id="joinOverlay">
   <div id="joinCard">
-    <h1>Djurbyggaren Multiplayer</h1>
-    <p>Öppna samma adress i båda headseten. Ange olika namn men samma rumskod. Den som lägger sista korrekta bokstaven får poängen.</p>
-    <input id="playerName" maxlength="12" value="SPELARE">
-    <input id="roomCode" maxlength="12" value="DJUR123">
-    <button id="joinButton">ANSLUT TILL RUM</button>
+    <h1>Fruktbyggaren Multiplayer</h1>
+    <div id="versionBadge">VERSION V32</div>
+    <div id="joinInfo">
+      Lär dig 20 frukter på engelska tillsammans. Varje korrekt bokstav sparas direkt och ger 1 poäng. Ett färdigt ord ger dessutom 10 poäng.
+      Samma spelarnamn kan bara användas av en person i varje rum.
+    </div>
+    <input id="playerName" maxlength="12" value="" placeholder="DITT SPELARNAMN" autocomplete="off">
+    <input id="roomCode" maxlength="12" value="" placeholder="NY ELLER BEFINTLIG RUMSKOD" autocomplete="off">
+    <button id="joinButton">ANSLUT TILL RUM • V32</button>
+    <div id="joinError"></div>
+
+    <div id="roomBrowser">
+      <div id="roomBrowserHead">
+        <h2>Befintliga rum</h2>
+        <button id="refreshRooms" class="alt">UPPDATERA</button>
+      </div>
+      <div class="roomMeta">Tomma rum kan raderas. Rum med spelare kvar skyddas.</div>
+      <div id="roomList"><div class="emptyRooms">Hämtar rum…</div></div>
+    </div>
   </div>
 </div>
 <div id="multiStatus">
@@ -36,7 +67,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR</button>
+  <button id="enterVr">STARTA VR • V32</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. Använd endast TRIGGER för att ta och släppa kuber.</div>
@@ -54,16 +85,14 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
  <a-entity light="type:point;color:#a667ff;intensity:2;distance:22" position="8 3 -8"></a-entity>
  <a-entity light="type:point;color:#ff5caa;intensity:1.5;distance:20" position="-8 3 7"></a-entity>
 
- <!-- 30 x 30 meter room -->
- <a-plane position="0 0 0" rotation="-90 0 0" width="40" height="40"
-   material="color:#0d1d34;roughness:.78;metalness:.12"></a-plane>
- <a-plane position="0 10 -20" width="40" height="20" material="color:#09162a;roughness:.9"></a-plane>
- <a-plane position="0 10 20" rotation="0 180 0" width="40" height="20" material="color:#09162a;roughness:.9"></a-plane>
- <a-plane position="-20 10 0" rotation="0 90 0" width="40" height="20" material="color:#0a1930;roughness:.9"></a-plane>
-
- <a-plane position="0 20 0" rotation="90 0 0" width="40" height="40" material="color:#081426;roughness:.92;metalness:.08;side:double"></a-plane>
- <a-plane position="20 10 0" rotation="0 -90 0" width="40" height="20"
-   material="color:#0a1930;roughness:.9"></a-plane>
+ <!-- 50 x 50 meter fruit room -->
+ <a-plane position="0 0 0" rotation="-90 0 0" width="50" height="50"
+   material="color:#14243a;roughness:.78;metalness:.10"></a-plane>
+ <a-plane position="0 10 -25" width="50" height="20" material="color:#101d32;roughness:.9"></a-plane>
+ <a-plane position="0 10 25" rotation="0 180 0" width="50" height="20" material="color:#101d32;roughness:.9"></a-plane>
+ <a-plane position="-25 10 0" rotation="0 90 0" width="50" height="20" material="color:#13253a;roughness:.9"></a-plane>
+ <a-plane position="25 10 0" rotation="0 -90 0" width="50" height="20" material="color:#13253a;roughness:.9"></a-plane>
+ <a-plane position="0 20 0" rotation="90 0 0" width="50" height="50" material="color:#0c1728;roughness:.92;metalness:.06;side:double"></a-plane>
 <a-ring position="0 .012 0" rotation="-90 0 0" radius-inner="3.4" radius-outer="3.46"
    material="color:#42e7ff;emissive:#42e7ff;emissiveIntensity:2"></a-ring>
  <a-ring position="0 .013 0" rotation="-90 0 0" radius-inner="8.5" radius-outer="8.57"
@@ -90,16 +119,26 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 
 <script>
 const ANIMAL_WORDS=[
-  {sv:'GRÄVLING',en:'BADGER'},
-  {sv:'IGELKOTT',en:'HEDGEHOG'},
-  {sv:'UTTER',en:'OTTER'},
-  {sv:'LO',en:'LYNX'},
-  {sv:'VILDSVIN',en:'WILDBOAR'},
-  {sv:'BÄVER',en:'BEAVER'},
-  {sv:'TVÄTTBJÖRN',en:'RACCOON'},
-  {sv:'EKORRE',en:'SQUIRREL'},
-  {sv:'MÅRD',en:'MARTEN'},
-  {sv:'JÄRV',en:'WOLVERINE'}
+  {sv:'ÄPPLE',en:'APPLE'},
+  {sv:'PÄRON',en:'PEAR'},
+  {sv:'BANAN',en:'BANANA'},
+  {sv:'APELSIN',en:'ORANGE'},
+  {sv:'CITRON',en:'LEMON'},
+  {sv:'LIME',en:'LIME'},
+  {sv:'MANGO',en:'MANGO'},
+  {sv:'PAPAYA',en:'PAPAYA'},
+  {sv:'ANANAS',en:'PINEAPPLE'},
+  {sv:'VINDRUVA',en:'GRAPE'},
+  {sv:'JORDGUBBE',en:'STRAWBERRY'},
+  {sv:'HALLON',en:'RASPBERRY'},
+  {sv:'BLÅBÄR',en:'BLUEBERRY'},
+  {sv:'BJÖRNBÄR',en:'BLACKBERRY'},
+  {sv:'KÖRSBÄR',en:'CHERRY'},
+  {sv:'PERSIKA',en:'PEACH'},
+  {sv:'PLOMMON',en:'PLUM'},
+  {sv:'KIWI',en:'KIWI'},
+  {sv:'GRANATÄPPLE',en:'POMEGRANATE'},
+  {sv:'VATTENMELON',en:'WATERMELON'}
 ];
 const WORDS=[...ANIMAL_WORDS];
 const ALPHABET='ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ';
@@ -114,6 +153,50 @@ const multiplayer={
   scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0
 };
 
+
+
+const GAME_VERSION='v32';
+
+async function loadRooms(){
+  const list=document.getElementById('roomList');
+  if(!list)return;
+  list.innerHTML='<div class="emptyRooms">Hämtar rum…</div>';
+  try{
+    const response=await fetch('/api/rooms',{cache:'no-store'});
+    if(!response.ok)throw new Error('Kunde inte hämta rum');
+    const data=await response.json();
+    const rooms=Array.isArray(data.rooms)?data.rooms:[];
+    if(!rooms.length){
+      list.innerHTML='<div class="emptyRooms">Inga rum finns ännu. Skriv en ny rumskod ovan.</div>';
+      return;
+    }
+    list.innerHTML='';
+    rooms.forEach(room=>{
+      const row=document.createElement('div');row.className='roomRow';
+      const info=document.createElement('div');
+      const age=room.updatedAt?new Date(room.updatedAt).toLocaleString('sv-SE'):''; 
+      info.innerHTML=`<strong>${room.name}</strong><div class="roomMeta">${room.players} spelare • ${room.words||0} ord klara${age?' • '+age:''}</div>`;
+      const join=document.createElement('button');join.className='roomJoin';join.textContent='VÄLJ';
+      join.onclick=()=>{document.getElementById('roomCode').value=room.name;document.getElementById('playerName').focus();};
+      const del=document.createElement('button');del.className='roomDelete';del.textContent='RADERA';
+      del.disabled=Number(room.players)>0;
+      del.title=del.disabled?'Rummet används och kan inte raderas':'Radera det tomma rummet';
+      del.onclick=async()=>{
+        if(!confirm(`Radera det tomma rummet ${room.name}?`))return;
+        const res=await fetch('/api/rooms/'+encodeURIComponent(room.name),{method:'DELETE'});
+        const result=await res.json().catch(()=>({}));
+        if(!res.ok)alert(result.message||'Rummet kunde inte raderas.');
+        await loadRooms();
+      };
+      row.append(info,join,del);list.appendChild(row);
+    });
+  }catch(error){
+    list.innerHTML='<div class="emptyRooms">Rumlistan kunde inte hämtas. Spelet går ändå att starta.</div>';
+  }
+}
+document.getElementById('refreshRooms').onclick=loadRooms;
+loadRooms();
+setInterval(()=>{if(document.getElementById('joinOverlay').style.display!=='none')loadRooms();},10000);
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,12)||fallback);
@@ -166,13 +249,14 @@ function handleServerMessage(message){
     multiplayer.connected=false;
     document.getElementById('joinOverlay').style.display='flex';
     document.getElementById('connectionText').textContent=message.message||'Namnet används redan';
-    alert(message.message||'Det namnet används redan i rummet.');
+    document.getElementById('joinError').textContent=message.message||'Det namnet används redan i rummet.';
+    loadRooms();
     try{multiplayer.socket.close()}catch(e){}
     return;
   }
   if(message.type==='welcome'){
     multiplayer.playerId=message.playerId;multiplayer.players=message.players||{};multiplayer.scores=message.scores||{};removeMissingAvatars();
-    renderMultiplayerStatus();if(message.state)applyAuthoritativeState(message.state);multiplayer.lastPoseSignature='';multiplayer.lastPoseAt=0;sendPose();return;
+    renderMultiplayerStatus();if(message.state)applyAuthoritativeState(message.state);loadRooms();multiplayer.lastPoseSignature='';multiplayer.lastPoseAt=0;sendPose();return;
   }
   if(message.type==='presence'){multiplayer.players=message.players||{};multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();return;}
   if(message.type==='pose'){updateRemoteAvatar(message.playerId,(multiplayer.players[message.playerId]||{}).name,message.pose);return;}
@@ -435,15 +519,14 @@ function addCubeFaces(cube,letter){
   });
 }
 function cubeSpawn(index,total){
-  // Alla bokstäver skapas enbart i det kvarvarande djurrummet.
-  const cols=6, rows=4;
+  const cols=8,rows=5;
   const col=index%cols;
   const row=Math.floor(index/cols)%rows;
   const layer=Math.floor(index/(cols*rows));
   return {
-    x:-14.5+col*5.7+rand(-.65,.65),
-    y:2.0+(layer%4)*4.1+rand(-.45,.45),
-    z:-13.5+row*8.8+rand(-.75,.75),
+    x:-19.0+col*5.45+rand(-.55,.55),
+    y:2.0+(layer%4)*4.0+rand(-.4,.4),
+    z:-18.0+row*9.0+rand(-.65,.65),
     kind:'floating'
   };
 }
@@ -506,10 +589,11 @@ function createCube(letter,index,total){
 }
 
 function stationTransform(i,roomIndex){
-  const ang=(-140+i*(280/9))*Math.PI/180,r=12.8;
-  const centerX=roomIndex===0?0:42;
-  const x=centerX+Math.sin(ang)*r,z=Math.cos(ang)*r;
-  return {x,z,ry:Math.atan2(x-centerX,z)*180/Math.PI+180};
+  const side=Math.floor(i/5),p=i%5,t=-16+p*8;
+  if(side===0)return {x:t,z:-22.2,ry:0};
+  if(side===1)return {x:22.2,z:t,ry:-90};
+  if(side===2)return {x:-t,z:22.2,ry:180};
+  return {x:-22.2,z:-t,ry:90};
 }
 function createStation(entry,i,roomIndex){
   const tr=stationTransform(i,roomIndex),root=document.createElement('a-entity');
@@ -557,26 +641,25 @@ function createStation(entry,i,roomIndex){
   game.appendChild(root);
 }
 function createDecor(){
-  // Ett enda lugnt och optimerat djurrum.
-  [[-19.5,-19.5],[-19.5,19.5],[19.5,-19.5],[19.5,19.5]].forEach(([x,z],i)=>{
-    const pillar=box([x,10,z],[.24,20,.24],i%2?'#253966':'#164d68');
-    pillar.setAttribute('material',`color:${i%2?'#253966':'#164d68'};emissive:${i%2?'#755cff':'#2ddfff'};emissiveIntensity:.28;metalness:.38`);
+  [[-24.5,-24.5],[-24.5,24.5],[24.5,-24.5],[24.5,24.5]].forEach(([x,z],i)=>{
+    const colors=['#ff5f6d','#ffb347','#55d98d','#a879ff'];
+    const pillar=box([x,10,z],[.24,20,.24],colors[i]);
+    pillar.setAttribute('material',`color:${colors[i]};emissive:${colors[i]};emissiveIntensity:.28;metalness:.30`);
     game.appendChild(pillar);
   });
-  // Färre dekorobjekt ger stabilare bild i Quest.
-  for(let i=-16;i<=16;i+=8){
-    game.appendChild(box([i,10,-19.82],[.07,18,.07],'#1b5874'));
-    game.appendChild(box([i,10,19.82],[.07,18,.07],'#3a2f67'));
-    game.appendChild(box([-19.82,10,i],[.07,18,.07],'#1b5874'));
-    game.appendChild(box([19.82,10,i],[.07,18,.07],'#3a2f67'));
+  for(let i=-20;i<=20;i+=10){
+    game.appendChild(box([i,10,-24.82],[.07,18,.07],'#ff765f'));
+    game.appendChild(box([i,10,24.82],[.07,18,.07],'#55d98d'));
+    game.appendChild(box([-24.82,10,i],[.07,18,.07],'#ffd05b'));
+    game.appendChild(box([24.82,10,i],[.07,18,.07],'#a879ff'));
   }
-  game.appendChild(planeLabel('DJURRUMMET',[0,12.65,-19.75],11,1.5,'#0c1d35','#ffffff',112));
-  game.appendChild(planeLabel('LÄR DIG DJUREN PÅ ENGELSKA',[0,11.25,-19.74],12,.68,'#0c1d35','#59e6d4',68));
+  game.appendChild(planeLabel('FRUKTRUMMET',[0,12.65,-24.75],12,1.5,'#15233a','#ffffff',112));
+  game.appendChild(planeLabel('LÄR DIG 20 FRUKTER PÅ ENGELSKA',[0,11.25,-24.74],14,.68,'#15233a','#72f0bb',68));
 }
 function createHud(){
   const hud=document.createElement('a-entity');hud.id='hud';hud.setAttribute('position','0 3.4 8.3');hud.setAttribute('rotation','0 180 0');
   hud.appendChild(box([0,0,0],[5.7,1.25,.15],'#102743'));
-  hud.appendChild(planeLabel('10 ORD • ENGELSK TRÄNING',[0,.28,.09],4.6,.43,'#102743','#ffffff',112));
+  hud.appendChild(planeLabel('20 FRUKTER • ENGELSK TRÄNING',[0,.28,.09],4.6,.43,'#102743','#ffffff',112));
   const status=planeLabel('0 / 10 KLARA',[0,-.18,.09],3.5,.38,'#102743','#58e4c9',112);status.id='statusPlane';hud.appendChild(status);
   game.appendChild(hud);
 }
@@ -609,8 +692,8 @@ function makeHudTexture(){
   x.strokeStyle='rgba(255,255,255,.18)';x.lineWidth=3;x.strokeRect(42,42,c.width-84,c.height-84);
 
   x.textAlign='left';
-  x.font=`900 112px ${family}`;x.fillStyle='#f4fdff';x.fillText('DJURBYGGAREN',72,105);
-  x.font=`800 46px ${family}`;x.fillStyle='#72eaff';x.fillText(`RUM ${multiplayer.room}`,76,205);
+  x.font=`900 112px ${family}`;x.fillStyle='#f4fdff';x.fillText('FRUKTBYGGAREN',72,105);
+  x.font=`800 46px ${family}`;x.fillStyle='#72eaff';x.fillText(`VERSION ${GAME_VERSION.toUpperCase()}  •  RUM ${multiplayer.room}`,76,205);
 
   const sec=Math.floor((Date.now()-state.start)/1000);
   const minutes=Math.floor(sec/60), seconds=String(sec%60).padStart(2,'0');
@@ -1147,7 +1230,7 @@ function stepZeroGPhysics(time,dtMs){
   if(!state||!state.physics||state.paused)return;
   const sec=Math.min(.04,Math.max(.001,(dtMs||16)/1000));
   const bodies=[...state.cubes,...state.hazards];
-  const minX=-18.35,maxX=18.35,minY=.32,maxY=18.6,minZ=-18.35,maxZ=18.35;
+  const minX=-23.35,maxX=23.35,minY=.32,maxY=18.6,minZ=-23.35,maxZ=23.35;
 
   for(const body of bodies){
     const phys=state.physics.get(body);
@@ -1182,34 +1265,25 @@ function stepZeroGPhysics(time,dtMs){
     if(q.y>maxY){q.y=maxY;phys.velocity.y=-Math.abs(phys.velocity.y)*.90}
     if(q.z<minZ){q.z=minZ;phys.velocity.z=Math.abs(phys.velocity.z)*.92}
     if(q.z>maxZ){q.z=maxZ;phys.velocity.z=-Math.abs(phys.velocity.z)*.92}
-
-    // Shared wall at x=20. Bodies may pass only through the doorway.
-    const inDoorway=Math.abs(q.z)<=3.0 && q.y<=7.0;
-    if(!inDoorway && Math.abs(q.x-20)<.42){
-      if(phys.velocity.x>0){q.x=19.55;phys.velocity.x=-Math.abs(phys.velocity.x)}
-      else{q.x=20.45;phys.velocity.x=Math.abs(phys.velocity.x)}
-    }
   }
 
-  const radius=.36;
-  for(let i=0;i<bodies.length;i++){
+  // Lättare kollisionskontroll för många fruktbokstäver.
+  const radius=.36,maxNeighbors=12;
+  for(let i=0;i<bodies.length;i+=2){
     const a=bodies[i],pa=state.physics.get(a);
     if(!pa||(!pa.hazard&&a.dataset.used!=='loose'))continue;
-    for(let j=i+1;j<bodies.length;j++){
+    const stop=Math.min(bodies.length,i+1+maxNeighbors);
+    for(let j=i+1;j<stop;j++){
       const b=bodies[j],pb=state.physics.get(b);
       if(!pb||(!pb.hazard&&b.dataset.used!=='loose'))continue;
-      const delta=b.object3D.position.clone().sub(a.object3D.position);
-      const d=delta.length();
-      if(d>0&&d<radius*2){
-        const n=delta.multiplyScalar(1/d),overlap=radius*2-d;
-        a.object3D.position.addScaledVector(n,-overlap*.5);
-        b.object3D.position.addScaledVector(n, overlap*.5);
-        const rel=pb.velocity.clone().sub(pa.velocity),sep=rel.dot(n);
-        if(sep<0){
-          const impulse=-sep*.8;
-          pa.velocity.addScaledVector(n,-impulse);
-          pb.velocity.addScaledVector(n, impulse);
-        }
+      const dx=b.object3D.position.x-a.object3D.position.x;
+      const dy=b.object3D.position.y-a.object3D.position.y;
+      const dz=b.object3D.position.z-a.object3D.position.z;
+      const d2=dx*dx+dy*dy+dz*dz;
+      if(d2>0&&d2<radius*radius*4){
+        const d=Math.sqrt(d2),nx=dx/d,ny=dy/d,nz=dz/d,overlap=radius*2-d;
+        a.object3D.position.x-=nx*overlap*.5;a.object3D.position.y-=ny*overlap*.5;a.object3D.position.z-=nz*overlap*.5;
+        b.object3D.position.x+=nx*overlap*.5;b.object3D.position.y+=ny*overlap*.5;b.object3D.position.z+=nz*overlap*.5;
       }
     }
   }
@@ -1406,8 +1480,8 @@ AFRAME.registerComponent('locomotion',{
      }
    }
 
-   rig.position.x=Math.max(-18.7,Math.min(18.7,rig.position.x));
-   rig.position.z=Math.max(-18.7,Math.min(18.7,rig.position.z));
+   rig.position.x=Math.max(-23.7,Math.min(23.7,rig.position.x));
+   rig.position.z=Math.max(-23.7,Math.min(23.7,rig.position.z));
  }
 });
 
@@ -1418,9 +1492,9 @@ function reset(){
   game.innerHTML='';
   state={held:null,heldBy:null,slots:[],cubes:[],complete:new Set(),start:Date.now(),physics:new Map(),hazards:[],projectiles:[],gameOver:false,paused:false,jetpack:false,verticalVelocity:0,gameOverRoot:null,restartButton:null,hudPlanes:[],lastPlayerPos:null,lastSpeedTime:performance.now(),lastMeasuredSpeed:0};
   createDecor();createCornerHud();
-  ANIMAL_WORDS.forEach((word,i)=>createStation(word,i,0));
+  WORDS.forEach((word,i)=>createStation(word,i,0));
 
-  // Exactly one cube for every required letter across all 10 words.
+  // Exactly one cube for every required letter across all 20 fruit words.
   const letters=seededShuffle(WORDS.map(word=>word.en).join('').split(''),multiplayer.room);
   letters.forEach(createCube);
   // Odödligt läge: inga dödliga röda kuber skapas.
@@ -1438,8 +1512,15 @@ rigEntity.removeAttribute('cube-watchdog');
 rigEntity.setAttribute('cube-watchdog','');
 
 document.getElementById('joinButton').onclick=()=>{
-  multiplayer.playerName=cleanCode(document.getElementById('playerName').value,'SPELARE');
-  multiplayer.room=cleanCode(document.getElementById('roomCode').value,'DJUR123');
+  const error=document.getElementById('joinError');
+  const rawName=document.getElementById('playerName').value.trim();
+  const rawRoom=document.getElementById('roomCode').value.trim();
+  error.textContent='';
+  if(!rawName){error.textContent='Skriv ett unikt spelarnamn.';return;}
+  if(!rawRoom){error.textContent='Skriv eller välj en rumskod.';return;}
+  multiplayer.playerName=cleanCode(rawName,'');
+  multiplayer.room=cleanCode(rawRoom,'');
+  if(!multiplayer.playerName||!multiplayer.room){error.textContent='Använd bokstäver och siffror i namn och rumskod.';return;}
   reset();connectMultiplayer();
 };
 
