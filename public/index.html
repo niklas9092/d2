@@ -42,14 +42,14 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Fruktbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V32</div>
+    <div id="versionBadge">VERSION V33</div>
     <div id="joinInfo">
       Lär dig 20 frukter på engelska tillsammans. Varje korrekt bokstav sparas direkt och ger 1 poäng. Ett färdigt ord ger dessutom 10 poäng.
       Samma spelarnamn kan bara användas av en person i varje rum.
     </div>
     <input id="playerName" maxlength="12" value="" placeholder="DITT SPELARNAMN" autocomplete="off">
     <input id="roomCode" maxlength="12" value="" placeholder="NY ELLER BEFINTLIG RUMSKOD" autocomplete="off">
-    <button id="joinButton">ANSLUT TILL RUM • V32</button>
+    <button id="joinButton">ANSLUT TILL RUM • V33</button>
     <div id="joinError"></div>
 
     <div id="roomBrowser">
@@ -67,7 +67,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V32</button>
+  <button id="enterVr">STARTA VR • V33</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. Använd endast TRIGGER för att ta och släppa kuber.</div>
@@ -102,7 +102,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 
  <a-entity id="game"></a-entity>
 
- <a-entity id="rig" position="0 0 14.5" cube-watchdog xr-button-poller locomotion="speed:5.8;bounds:18.5">
+ <a-entity id="rig" position="0 0 14.5" cube-watchdog xr-button-poller locomotion="speed:5.8;bounds:23.5">
    <a-camera id="camera" position="0 1.65 0" look-controls="pointerLockEnabled:false" wasd-controls="acceleration:40">
      <a-cursor fuse="false" raycaster="objects:.interactable;far:2.1"
        geometry="primitive:ring;radiusInner:.004;radiusOuter:.009"
@@ -155,7 +155,7 @@ const multiplayer={
 
 
 
-const GAME_VERSION='v32';
+const GAME_VERSION='v33';
 
 async function loadRooms(){
   const list=document.getElementById('roomList');
@@ -225,7 +225,14 @@ function connectMultiplayer(){
   const ws=new WebSocket(socketUrl());
   multiplayer.socket=ws;
   document.getElementById('connectionText').textContent='Ansluter…';
-  ws.addEventListener('open',()=>{multiplayer.connected=true;document.getElementById('joinOverlay').style.display='none';renderMultiplayerStatus();sendGameState('join');});
+  ws.addEventListener('open',()=>{
+    multiplayer.connected=true;
+    document.getElementById('joinOverlay').style.display='none';
+    document.getElementById('connectionText').textContent='Ansluten — hämtar sparat spel…';
+    renderMultiplayerStatus();
+    // Viktigt: skicka aldrig lokal tom spelstatus vid anslutning.
+    // Serverns sparade rum är alltid auktoritativt och kommer i welcome.
+  });
   ws.addEventListener('message',event=>{try{handleServerMessage(JSON.parse(event.data));}catch(error){console.error(error);}});
   ws.addEventListener('close',()=>{multiplayer.connected=false;renderMultiplayerStatus();if(!multiplayer.intentionalClose){clearTimeout(multiplayer.reconnectTimer);multiplayer.reconnectTimer=setTimeout(connectMultiplayer,1800);}});
 }
@@ -255,11 +262,26 @@ function handleServerMessage(message){
     return;
   }
   if(message.type==='welcome'){
-    multiplayer.playerId=message.playerId;multiplayer.players=message.players||{};multiplayer.scores=message.scores||{};removeMissingAvatars();
-    renderMultiplayerStatus();if(message.state)applyAuthoritativeState(message.state);loadRooms();multiplayer.lastPoseSignature='';multiplayer.lastPoseAt=0;sendPose();return;
+    multiplayer.playerId=message.playerId;
+    multiplayer.players=message.players||{};
+    multiplayer.scores=message.scores||{};
+    removeMissingAvatars();
+    renderMultiplayerStatus();
+    if(message.state)applyAuthoritativeState(message.state);
+    if(message.poses){
+      for(const [id,pose] of Object.entries(message.poses)){
+        const player=multiplayer.players[id]||{};
+        updateRemoteAvatar(id,player.name||'SPELARE',pose);
+      }
+    }
+    loadRooms();
+    multiplayer.lastPoseSignature='';
+    multiplayer.lastPoseAt=0;
+    sendPose(true);
+    return;
   }
   if(message.type==='presence'){multiplayer.players=message.players||{};multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();return;}
-  if(message.type==='pose'){updateRemoteAvatar(message.playerId,(multiplayer.players[message.playerId]||{}).name,message.pose);return;}
+  if(message.type==='pose'){updateRemoteAvatar(message.playerId,message.playerName||(multiplayer.players[message.playerId]||{}).name||'SPELARE',message.pose);return;}
   if(message.type==='state'){
     multiplayer.players=message.players||multiplayer.players;multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();applyAuthoritativeState(message.state);return;
   }
@@ -302,19 +324,40 @@ function applyAuthoritativeState(remoteState){
 
 function vecToArray(v){return [Number(v.x.toFixed(3)),Number(v.y.toFixed(3)),Number(v.z.toFixed(3))];}
 function quatToArray(q){return [Number(q.x.toFixed(4)),Number(q.y.toFixed(4)),Number(q.z.toFixed(4)),Number(q.w.toFixed(4))];}
-function sendPose(){
-  if(!multiplayer.connected||!state)return;
-  const now=performance.now();if(now-multiplayer.lastPoseAt<80)return;
-  const camera=document.getElementById('camera'),left=document.getElementById('left'),right=document.getElementById('right');
+function sendPose(force=false){
+  if(!multiplayer.connected||!state||!multiplayer.socket||multiplayer.socket.readyState!==WebSocket.OPEN)return;
+  const camera=document.getElementById('camera');
+  const left=document.getElementById('left');
+  const right=document.getElementById('right');
   if(!camera||!left||!right)return;
-  const hp=new THREE.Vector3(),hq=new THREE.Quaternion(),lp=new THREE.Vector3(),lq=new THREE.Quaternion(),rp=new THREE.Vector3(),rq=new THREE.Quaternion();
-  camera.object3D.getWorldPosition(hp);camera.object3D.getWorldQuaternion(hq);left.object3D.getWorldPosition(lp);left.object3D.getWorldQuaternion(lq);right.object3D.getWorldPosition(rp);right.object3D.getWorldQuaternion(rq);
+
+  const hp=new THREE.Vector3(),hq=new THREE.Quaternion();
+  const lp=new THREE.Vector3(),lq=new THREE.Quaternion();
+  const rp=new THREE.Vector3(),rq=new THREE.Quaternion();
+  camera.object3D.getWorldPosition(hp);camera.object3D.getWorldQuaternion(hq);
+  left.object3D.getWorldPosition(lp);left.object3D.getWorldQuaternion(lq);
+  right.object3D.getWorldPosition(rp);right.object3D.getWorldQuaternion(rq);
+
   let heldLetter='',heldHand='';
-  if(state.held){heldLetter=state.held.dataset.letter||'';heldHand=state.heldBy&&state.heldBy.id?state.heldBy.id:'';}
-  const pose={head:vecToArray(hp),headQ:quatToArray(hq),left:vecToArray(lp),leftQ:quatToArray(lq),right:vecToArray(rp),rightQ:quatToArray(rq),heldLetter,heldHand};
+  if(state.held){
+    heldLetter=state.held.dataset.letter||'';
+    heldHand=(state.heldBy&&state.heldBy.id)==='left'?'left':'right';
+  }
+
+  const round=n=>Math.round(n*1000)/1000;
+  const arr=v=>[round(v.x),round(v.y),round(v.z)];
+  const quat=q=>[round(q.x),round(q.y),round(q.z),round(q.w)];
+  const pose={
+    head:arr(hp),headQ:quat(hq),
+    left:arr(lp),leftQ:quat(lq),
+    right:arr(rp),rightQ:quat(rq),
+    heldLetter,heldHand
+  };
   const signature=JSON.stringify(pose);
-  if(signature===multiplayer.lastPoseSignature&&now-multiplayer.lastPoseAt<900)return;
-  multiplayer.lastPoseAt=now;multiplayer.lastPoseSignature=signature;
+  const now=performance.now();
+  if(!force&&signature===multiplayer.lastPoseSignature&&now-multiplayer.lastPoseAt<700)return;
+  multiplayer.lastPoseAt=now;
+  multiplayer.lastPoseSignature=signature;
   sendMessage({type:'pose',pose});
 }
 function avatarColor(id){let h=0;for(const ch of String(id||'SPELARE'))h=(h*31+ch.charCodeAt(0))>>>0;return COLORS[h%COLORS.length];}
@@ -385,36 +428,74 @@ function placeLimb(cylinder,start,end){
   cylinder.object3D.scale.set(1,len/.7,1);
   cylinder.object3D.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
 }
-function smoothRemoteAvatars(){
-  const alpha=0.24;
+function smoothRemoteAvatarsFrame(dtMs=16){
+  const dt=Math.min(50,Math.max(1,dtMs||16));
+  const posAlpha=1-Math.exp(-dt/72);
+  const rotAlpha=1-Math.exp(-dt/62);
+  const handAlpha=1-Math.exp(-dt/48);
   const now=performance.now();
+
   for(const a of Object.values(multiplayer.avatars)){
     if(!a.initialized)continue;
-    const move=(el,p,q)=>{el.object3D.position.lerp(p,alpha);el.object3D.quaternion.slerp(q,alpha);};
-    move(a.root,a.targetRootPos,a.targetRootQuat);
-    move(a.left,a.targetLeftPos,a.targetLeftQuat);
-    move(a.right,a.targetRightPos,a.targetRightQuat);
+
+    a.root.object3D.position.lerp(a.targetRootPos,posAlpha);
+    a.root.object3D.quaternion.slerp(a.targetRootQuat,rotAlpha);
+    a.left.object3D.position.lerp(a.targetLeftPos,handAlpha);
+    a.left.object3D.quaternion.slerp(a.targetLeftQuat,rotAlpha);
+    a.right.object3D.position.lerp(a.targetRightPos,handAlpha);
+    a.right.object3D.quaternion.slerp(a.targetRightQuat,rotAlpha);
+
     const shoulderL=new THREE.Vector3(-.34,-.39,0).applyQuaternion(a.root.object3D.quaternion).add(a.root.object3D.position);
     const shoulderR=new THREE.Vector3(.34,-.39,0).applyQuaternion(a.root.object3D.quaternion).add(a.root.object3D.position);
     placeLimb(a.armL,shoulderL,a.left.object3D.position);
     placeLimb(a.armR,shoulderR,a.right.object3D.position);
-    const visible=now-a.lastPoseAt<2200;
-    a.root.setAttribute('visible',visible);a.left.setAttribute('visible',visible);a.right.setAttribute('visible',visible);a.armL.setAttribute('visible',visible);a.armR.setAttribute('visible',visible);
+
+    // Dölj bara efter ett verkligt långt avbrott, inte vid små nätverksvariationer.
+    const visible=now-a.lastPoseAt<10000;
+    a.root.object3D.visible=visible;
+    a.left.object3D.visible=visible;
+    a.right.object3D.visible=visible;
+    a.armL.object3D.visible=visible;
+    a.armR.object3D.visible=visible;
+
     if(visible&&a.heldLetter){
       const hand=a.heldHand==='left'?a.left:a.right;
-      a.letter.setAttribute('visible','true');
-      a.letter.object3D.position.lerp(hand.object3D.position,.42);
-      a.letter.object3D.quaternion.slerp(hand.object3D.quaternion,.42);
-      if(a.letter.dataset.letter!==a.heldLetter){a.letter.dataset.letter=a.heldLetter;addCubeFaces(a.letter,a.heldLetter);}
-    }else a.letter.setAttribute('visible','false');
+      a.letter.object3D.visible=true;
+      a.letter.object3D.position.lerp(hand.object3D.position,handAlpha);
+      a.letter.object3D.quaternion.slerp(hand.object3D.quaternion,rotAlpha);
+      if(a.letter.dataset.letter!==a.heldLetter){
+        a.letter.dataset.letter=a.heldLetter;
+        addCubeFaces(a.letter,a.heldLetter);
+      }
+    }else{
+      a.letter.object3D.visible=false;
+    }
   }
-  requestAnimationFrame(smoothRemoteAvatars);
 }
-requestAnimationFrame(smoothRemoteAvatars);
+
+AFRAME.registerComponent('multiplayer-motion',{
+  init(){
+    this.poseAccumulator=0;
+    this.heartbeatAccumulator=0;
+  },
+  tick(time,dt){
+    // A-Frame tick fortsätter även när immersive WebXR pausar window.requestAnimationFrame.
+    smoothRemoteAvatarsFrame(dt||16);
+    if(!multiplayer.connected||!state)return;
+    this.poseAccumulator+=(dt||16);
+    this.heartbeatAccumulator+=(dt||16);
+    if(this.poseAccumulator>=75){
+      this.poseAccumulator=0;
+      sendPose(true);
+    }else if(this.heartbeatAccumulator>=750){
+      this.heartbeatAccumulator=0;
+      sendPose(false);
+    }
+  }
+});
 function removeMissingAvatars(){
   for(const [id,a] of Object.entries(multiplayer.avatars))if(!multiplayer.players[id]){a.root.remove();a.left.remove();a.right.remove();a.armL.remove();a.armR.remove();a.letter.remove();delete multiplayer.avatars[id];}
 }
-setInterval(sendPose,85);
 
 function audio(){
   if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
@@ -1507,6 +1588,8 @@ function reset(){
 // Attach them explicitly now so their tick loops always run.
 scene.removeAttribute('floating-cube-physics');
 scene.setAttribute('floating-cube-physics','');
+scene.removeAttribute('multiplayer-motion');
+scene.setAttribute('multiplayer-motion','');
 const rigEntity=document.getElementById('rig');
 rigEntity.removeAttribute('cube-watchdog');
 rigEntity.setAttribute('cube-watchdog','');
@@ -1521,7 +1604,8 @@ document.getElementById('joinButton').onclick=()=>{
   multiplayer.playerName=cleanCode(rawName,'');
   multiplayer.room=cleanCode(rawRoom,'');
   if(!multiplayer.playerName||!multiplayer.room){error.textContent='Använd bokstäver och siffror i namn och rumskod.';return;}
-  reset();connectMultiplayer();
+  reset(); // endast lokal scen; skickas inte till servern
+  connectMultiplayer();
 };
 
 document.getElementById('enterVr').onclick=()=>{

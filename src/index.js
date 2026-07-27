@@ -135,12 +135,20 @@ export class GameRoom extends DurableObject {
     game.scores[playerId] ||= { name, score: 0 };
     await this.ctx.storage.put("game", game);
 
+    const poses = {};
+    for (const existing of this.ctx.getWebSockets()) {
+      if (existing === server) continue;
+      const info = existing.deserializeAttachment() || {};
+      if (info.playerId && info.latestPose) poses[info.playerId] = info.latestPose;
+    }
+
     server.send(JSON.stringify({
       type: "welcome",
       playerId,
       players: this.playerObject(),
       scores: game.scores,
       state: { slots: game.slots || [], complete: game.complete || [] },
+      poses,
     }));
     await this.broadcastPresence(game);
     await this.updateLobby(room, game);
@@ -161,7 +169,15 @@ export class GameRoom extends DurableObject {
     game.scores[playerId].name = name;
 
     if (data.type === "pose" && data.pose) {
-      await this.broadcastExcept(ws, { type: "pose", playerId, pose: data.pose });
+      // Spara senaste pose i WebSocket-attachment. Den överlever DO-hibernation
+      // och kan skickas direkt till spelare som ansluter senare.
+      ws.serializeAttachment({ ...a, latestPose: data.pose });
+      await this.broadcastExcept(ws, {
+        type: "pose",
+        playerId,
+        playerName: name,
+        pose: data.pose,
+      });
       return;
     }
 
