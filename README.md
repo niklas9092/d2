@@ -1,17 +1,19 @@
-# Ordbyggaren Multiplayer v45
+# Ordbyggaren Multiplayer v46
 
-## Fix för spelare 2
-Kubnätverket är nu en egen A-Frame-komponent, helt separat från spelarpose,
-frysning och rörelsekontroller.
+## Fix för fram-och-tillbaka-rörelse
 
-- Fysikvärden skickar kubstatus var 100 ms.
-- En ny spelare får sparad kubstatus direkt.
-- Servern ber dessutom fysikvärden om ett omedelbart nytt paket när någon ansluter.
-- Paketen innehåller position, rotation, hastighet och rotationshastighet.
-- Spelare 2 fortsätter beräkna rörelsen mellan paketen med dead reckoning.
-- Kubarna står därför inte still mellan uppdateringarna.
-- Om inga paket kommer på 1,5 sekunder begär klienten nytt värdskap.
-- Servern kontrollerar att värdens heartbeat verkligen är gammalt innan byte.
-- Den nya värden skickar omedelbart ett första paket.
+v45 använde hastighetsprognos mellan nätpaketen. Kuben fortsatte då framåt
+förbi den senaste auktoritativa positionen. När nästa paket kom drogs den
+tillbaka, vilket skapade en mjuk men tydlig pendling.
 
-Detta är oberoende av frysstrålen och av vilken spelare som rör sig.
+v46 använder i stället:
+
+- ingen extrapolering
+- ingen dead reckoning
+- dämpad interpolation direkt mot senaste serverposition
+- mjuk quaternion-interpolation för rotation
+- mikrosnäpp endast när felet är extremt litet
+- fortsatt kubsynk var 100 ms
+- mindre nätpaket utan onödig hastighetsdata
+
+Resultatet ska vara mjuk framåtrörelse utan överskjutning och tillbakadragning.
