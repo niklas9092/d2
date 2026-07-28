@@ -34,11 +34,11 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Ordbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V39</div>
+    <div id="versionBadge">VERSION V40</div>
     <div id="joinInfo">
       Skriv ditt namn och ett gemensamt rumsnamn. Ett rum sparar tema, ord, poäng och ritningar.
       Efter fyra timmar helt utan aktivitet nollställs rummet automatiskt.
-      Håll A-knappen för att rita gemensamt med lysande bollar.
+      Tryck A för att skjuta en frysstråle. En träff fryser spelaren i ett isblock i 10 sekunder.
     </div>
     <input id="playerName" maxlength="12" value="" placeholder="DITT SPELARNAMN" autocomplete="off">
     <input id="roomCode" maxlength="16" value="" placeholder="RUMSNAMN" autocomplete="off">
@@ -53,7 +53,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
       <option value="body">Kroppen</option>
       <option value="city">Resor & staden</option>
     </select>
-    <button id="joinButton">GÅ IN I RUMMET • V39</button>
+    <button id="joinButton">GÅ IN I RUMMET • V40</button>
     <div id="joinError"></div>
   </div>
 </div>
@@ -62,10 +62,10 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V39</button>
+  <button id="enterVr">STARTA VR • V40</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
-<div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. TRIGGER tar och släpper kuber. Håll A för att rita med lysande bollar.</div>
+<div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. TRIGGER tar, släpper och kan stjäla bokstäver efter 3 sekunder. A skjuter frysstråle.</div>
 
 <a-scene id="scene" floating-cube-physics
  renderer="antialias:true;colorManagement:true;physicallyCorrectLights:false;precision:mediump;sortObjects:true"
@@ -141,12 +141,12 @@ let audioCtx=null;
 const multiplayer={
   clientKey:sessionStorage.getItem('djurClientKey')||crypto.randomUUID(),
   socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
-  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',drawing:false,drawingHand:null,drawBatch:[],lastDrawAt:0
+  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',physicsHostId:'',cubeOwners:{},frozenUntil:0,lastCubeSync:0
 };
 
 
 
-const GAME_VERSION='v39';
+const GAME_VERSION='v40';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,'').slice(0,16)||fallback);
@@ -378,6 +378,8 @@ function handleServerMessage(message){
     multiplayer.playerId=message.playerId;
     multiplayer.players=message.players||{};
     multiplayer.scores=message.scores||{};
+    multiplayer.physicsHostId=message.physicsHostId||'';
+    multiplayer.cubeOwners=message.cubeOwners||{};
     if(message.theme&&message.theme!==currentThemeId){
       setTheme(message.theme);
       reset();
@@ -385,7 +387,7 @@ function handleServerMessage(message){
     removeMissingAvatars();
     renderMultiplayerStatus();
     if(message.state)applyAuthoritativeState(message.state);
-    if(Array.isArray(message.drawings))addDrawingPoints(message.drawings);
+    if(message.cubes)applyCubeSnapshot(message.cubes);
     if(message.poses){
       for(const [id,pose] of Object.entries(message.poses)){
         const player=multiplayer.players[id]||{};
@@ -401,7 +403,30 @@ function handleServerMessage(message){
   if(message.type==='presence'){multiplayer.players=message.players||{};multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();return;}
   if(message.type==='pose'){updateRemoteAvatar(message.playerId,message.playerName||(multiplayer.players[message.playerId]||{}).name||'SPELARE',message.pose);return;}
   if(message.type==='celebration'){showWordCelebration(message.playerName,message.word);return;}
-  if(message.type==='draw'){addDrawingPoints(message.points||[]);return;}
+  if(message.type==='cube-sync'){applyCubeSnapshot(message.cubes||[]);return;}
+  if(message.type==='physics-host'){multiplayer.physicsHostId=message.playerId||'';return;}
+  if(message.type==='claim-granted'){localGainCube(message.cubeId,message.hand);return;}
+  if(message.type==='claim-denied'){sfx('wrong');return;}
+  if(message.type==='cube-owner'){
+    multiplayer.cubeOwners[message.cubeId]=message.ownerId||'';
+    const cube=cubeById(message.cubeId);
+    if(cube&&message.ownerId&&message.ownerId!==multiplayer.playerId){
+      if(state.held===cube)localLoseHeldCube(message.cubeId);
+      cube.object3D.visible=false;cube.dataset.used='remote-held';
+    }else if(cube&&!message.ownerId&&cube!==state.held){
+      cube.object3D.visible=true;cube.dataset.used='loose';cube.dataset.owner='';
+    }
+    return;
+  }
+  if(message.type==='freeze'){
+    showIceBlock(message.targetId,10000);
+    if(message.targetId===multiplayer.playerId){
+      multiplayer.frozenUntil=performance.now()+10000;
+      if(state.held)releaseCube(true);
+      state.jetpack=false;stopJetSound();
+    }
+    return;
+  }
   if(message.type==='state'){
     multiplayer.players=message.players||multiplayer.players;multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();applyAuthoritativeState(message.state);return;
   }
@@ -474,7 +499,7 @@ function sendPose(force=false){
     head:arr(hp),headQ:quat(hq),
     left:arr(lp),leftQ:quat(lq),
     right:arr(rp),rightQ:quat(rq),
-    heldLetter,heldHand
+    heldLetter,heldHand,heldCubeId:state.held?.dataset.id||''
   };
   const signature=JSON.stringify(pose);
   const now=performance.now();
@@ -542,6 +567,7 @@ function updateRemoteAvatar(id,name,pose){
   a.lastPoseAt=performance.now();
   a.heldLetter=pose.heldLetter||'';
   a.heldHand=pose.heldHand||'right';
+  a.heldCubeId=pose.heldCubeId||'';
 }
 function placeLimb(cylinder,start,end){
   const dir=end.clone().sub(start);
@@ -616,17 +642,16 @@ function smoothRemoteAvatarsFrame(dtMs=16){
 AFRAME.registerComponent('multiplayer-motion',{
   init(){
     this.poseAccumulator=0;
-    this.heartbeatAccumulator=0;this.drawAccumulator=0;
+    this.heartbeatAccumulator=0;this.cubeAccumulator=0;
   },
   tick(time,dt){
     // A-Frame tick fortsätter även när immersive WebXR pausar window.requestAnimationFrame.
     smoothRemoteAvatarsFrame(dt||16);
     if(!multiplayer.connected||!state)return;
     this.poseAccumulator+=(dt||16);
-    this.heartbeatAccumulator+=(dt||16);this.drawAccumulator+=(dt||16);
-    if(multiplayer.drawing&&this.drawAccumulator>=85){
-      this.drawAccumulator=0;
-      emitDrawPoint();
+    this.heartbeatAccumulator+=(dt||16);this.cubeAccumulator+=(dt||16);    if(multiplayer.physicsHostId===multiplayer.playerId&&this.cubeAccumulator>=200){
+      this.cubeAccumulator=0;
+      sendMessage({type:'cube-sync',cubes:cubeWorldSnapshot()});
     }
     if(this.poseAccumulator>=75){
       this.poseAccumulator=0;
@@ -641,61 +666,6 @@ function removeMissingAvatars(){
   for(const [id,a] of Object.entries(multiplayer.avatars))if(!multiplayer.players[id]){a.root.remove();a.left.remove();a.right.remove();a.armL.remove();a.armR.remove();a.letter.remove();delete multiplayer.avatars[id];}
 }
 
-
-const MAX_DRAW_POINTS=600;
-function initDrawingLayer(){
-  const geometry=new THREE.SphereGeometry(.075,6,5);
-  const material=new THREE.MeshBasicMaterial({vertexColors:true,toneMapped:false});
-  const mesh=new THREE.InstancedMesh(geometry,material,MAX_DRAW_POINTS);
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  mesh.count=0;mesh.frustumCulled=false;mesh.renderOrder=10;
-  state.drawingMesh=mesh;
-  game.object3D.add(mesh);
-}
-function rebuildDrawingMesh(){
-  if(!state?.drawingMesh)return;
-  const mesh=state.drawingMesh;
-  const dummy=new THREE.Object3D();
-  state.drawPoints=state.drawPoints.slice(-MAX_DRAW_POINTS);
-  state.drawPoints.forEach((p,i)=>{
-    dummy.position.set(p.x,p.y,p.z);dummy.updateMatrix();
-    mesh.setMatrixAt(i,dummy.matrix);
-    mesh.setColorAt(i,new THREE.Color(p.color||'#ffffff'));
-  });
-  mesh.count=state.drawPoints.length;
-  mesh.instanceMatrix.needsUpdate=true;
-  if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
-}
-function addDrawingPoints(points){
-  if(!state||!Array.isArray(points)||!points.length)return;
-  for(const p of points){
-    if(!p||![p.x,p.y,p.z].every(Number.isFinite))continue;
-    state.drawPoints.push({
-      x:Math.max(-24,Math.min(24,p.x)),
-      y:Math.max(.1,Math.min(19,p.y)),
-      z:Math.max(-24,Math.min(24,p.z)),
-      color:p.color||'#ffffff'
-    });
-  }
-  rebuildDrawingMesh();
-}
-function emitDrawPoint(){
-  if(!multiplayer.drawing||!multiplayer.drawingHand||!multiplayer.connected||!state)return;
-  const hand=multiplayer.drawingHand;
-  const pos=new THREE.Vector3(),q=new THREE.Quaternion(),forward=new THREE.Vector3(0,0,-1);
-  hand.object3D.getWorldPosition(pos);hand.object3D.getWorldQuaternion(q);
-  forward.applyQuaternion(q);
-  pos.addScaledVector(forward,.18);
-  const point={x:pos.x,y:pos.y,z:pos.z,color:avatarColor(multiplayer.playerName)};
-  addDrawingPoints([point]);
-  multiplayer.drawBatch.push(point);
-  if(multiplayer.drawBatch.length>=4)flushDrawBatch();
-}
-function flushDrawBatch(){
-  if(!multiplayer.drawBatch.length)return;
-  const points=multiplayer.drawBatch.splice(0,12);
-  sendMessage({type:'draw',points});
-}
 
 function audio(){
   if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
@@ -858,7 +828,7 @@ function createCube(letter,index,total){
   const color=COLORS[index%COLORS.length];
   e.setAttribute('material',`color:${color};roughness:.28;metalness:.42;emissive:${color};emissiveIntensity:.13`);
   e.setAttribute('shadow','cast:true;receive:true');
-  e.dataset.letter=letter;e.dataset.used='loose';e.dataset.id='cube'+index;
+  e.dataset.letter=letter;e.dataset.used='loose';e.dataset.id='cube'+index;e.dataset.owner='';
   e.dataset.home=`${spawn.x},${spawn.y},${spawn.z}`;
   addCubeFaces(e,letter);
   e.addEventListener('mouseenter',()=>{if(e.dataset.used==='loose')e.setAttribute('scale','1.12 1.12 1.12')});
@@ -1199,19 +1169,114 @@ function closestSlot(pos,maxDistance=.78){
   });
   return best;
 }
-function attachCube(cube,hand){
-  if(state.held||!cube||cube.dataset.used!=='loose')return false;
+
+function cubeWorldSnapshot(){
+  if(!state)return [];
+  return state.cubes.filter(c=>c.dataset.used==='loose').map(c=>{
+    const p=c.object3D.position,q=c.object3D.quaternion;
+    return {id:c.dataset.id,p:[p.x,p.y,p.z],q:[q.x,q.y,q.z,q.w]};
+  });
+}
+function applyCubeSnapshot(items){
+  if(!state||!Array.isArray(items))return;
+  for(const item of items){
+    const cube=cubeById(item.id);
+    if(!cube||cube===state.held||cube.dataset.used!=='loose')continue;
+    if(Array.isArray(item.p))cube.object3D.position.fromArray(item.p);
+    if(Array.isArray(item.q))cube.object3D.quaternion.fromArray(item.q);
+  }
+}
+function requestCubeClaim(cube,hand){
+  if(!cube||!multiplayer.connected)return;
+  sendMessage({type:'claim-cube',cubeId:cube.dataset.id,hand:hand?.id==='left'?'left':'right'});
+}
+function remoteStealCandidate(hand,maxDistance=.9){
+  const hp=worldPos(hand);
+  let best=null,bestD=maxDistance;
+  for(const [id,a] of Object.entries(multiplayer.avatars)){
+    if(!a.heldCubeId)continue;
+    const heldHand=a.heldHand==='left'?a.left:a.right;
+    const d=heldHand.object3D.position.distanceTo(hp);
+    if(d<bestD){bestD=d;best={playerId:id,cubeId:a.heldCubeId};}
+  }
+  return best;
+}
+function localLoseHeldCube(cubeId){
+  if(!state?.held||state.held.dataset.id!==cubeId)return;
+  const cube=state.held;
+  state.held=null;state.heldBy=null;
+  game.object3D.attach(cube.object3D);
+  cube.object3D.visible=false;
+  cube.dataset.used='remote-held';
+}
+function localGainCube(cubeId,handName){
+  const cube=cubeById(cubeId);
+  const hand=document.getElementById(handName==='left'?'left':'right');
+  if(!cube||!hand)return;
+  if(state.held&&state.held!==cube)releaseCube(true);
+  cube.object3D.visible=true;
+  cube.dataset.used='loose';
+  attachCube(cube,hand,true);
+}
+function fireFreezeBeam(hand){
+  if(!multiplayer.connected||!hand||performance.now()<multiplayer.frozenUntil)return;
+  const rayComp=hand.components?.raycaster;
+  if(!rayComp?.raycaster)return;
+  const ray=rayComp.raycaster.ray;
+  const origin=ray.origin.clone(),dir=ray.direction.clone().normalize();
+  let targetId='',bestT=18;
+  for(const [id,a] of Object.entries(multiplayer.avatars)){
+    if(!a.initialized)continue;
+    const target=a.root.object3D.position.clone().add(new THREE.Vector3(0,-.75,0));
+    const to=target.clone().sub(origin);
+    const t=to.dot(dir);
+    if(t<0||t>18)continue;
+    const closest=origin.clone().addScaledVector(dir,t);
+    if(closest.distanceTo(target)<.75&&t<bestT){bestT=t;targetId=id;}
+  }
+  const end=origin.clone().addScaledVector(dir,targetId?bestT:12);
+  showFreezeBeam(origin,end);
+  if(targetId)sendMessage({type:'freeze',targetId});
+}
+function showFreezeBeam(start,end){
+  const beam=document.createElement('a-cylinder');
+  const delta=end.clone().sub(start),len=delta.length(),mid=start.clone().add(end).multiplyScalar(.5);
+  beam.setAttribute('radius','.045');beam.setAttribute('height',len);
+  beam.setAttribute('material','color:#b8f5ff;emissive:#53dfff;emissiveIntensity:4;shader:flat;transparent:true;opacity:.92');
+  game.appendChild(beam);beam.object3D.position.copy(mid);
+  beam.object3D.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
+  setTimeout(()=>beam.remove(),220);
+}
+function showIceBlock(targetId,durationMs=10000){
+  const local=targetId===multiplayer.playerId;
+  const parent=local?document.getElementById('rig'):multiplayer.avatars[targetId]?.root;
+  if(!parent)return;
+  const old=parent.querySelector?.('.iceBlock');if(old)old.remove();
+  const ice=document.createElement('a-box');ice.classList.add('iceBlock');
+  ice.setAttribute('width','1.05');ice.setAttribute('height','2.05');ice.setAttribute('depth','1.0');
+  ice.setAttribute('position',local?'0 1.05 0':'0 -.82 0');
+  ice.setAttribute('material','color:#9deaff;emissive:#5fdcff;emissiveIntensity:.35;transparent:true;opacity:.38;roughness:.08;metalness:.05;side:double');
+  parent.appendChild(ice);
+  setTimeout(()=>ice.remove(),durationMs);
+}
+function attachCube(cube,hand,serverGranted=false){
+  if(state.held||!cube||!['loose','remote-held'].includes(cube.dataset.used))return false;
+  if(multiplayer.connected&&!serverGranted){
+    requestCubeClaim(cube,hand);
+    return true;
+  }
   cube.removeAttribute('animation__return');
   cube.removeAttribute('animation__celebrate');
-  state.held=cube;
-  state.heldBy=hand;
+  state.held=cube;state.heldBy=hand;
+  cube.object3D.visible=true;
   setCubeState(cube,'held');
+  cube.dataset.owner=multiplayer.playerId;
+  cube.dataset.heldSince=String(Date.now());
   hand.object3D.attach(cube.object3D);
   cube.object3D.position.set(0,-.025,-.16);
   cube.object3D.rotation.set(0,0,0);
   cube.object3D.scale.set(1.02,1.02,1.02);
-  syncTransform(cube);
-  sfx('grab');
+  syncTransform(cube);sfx('grab');sendPose(true);
   return true;
 }
 function freeDrop(cube){
@@ -1226,6 +1291,7 @@ function freeDrop(cube){
 function releaseCube(forceDrop=false){
   const cube=state.held;
   if(!cube)return false;
+  if(multiplayer.connected)sendMessage({type:'release-cube',cubeId:cube.dataset.id});
 
   state.held=null;
   state.heldBy=null;
@@ -1374,7 +1440,7 @@ function nearbyCube(hand,maxDistance=.82){
   const hp=worldPos(hand);
   let best=null,bestDistance=maxDistance;
   state.cubes.forEach(cube=>{
-    if(cube.dataset.used!=='loose')return;
+    if(cube.dataset.used!=='loose'||cube.object3D.visible===false)return;
     const d=worldPos(cube).distanceTo(hp);
     if(d<bestDistance){bestDistance=d;best=cube}
   });
@@ -1424,21 +1490,14 @@ AFRAME.registerComponent('grabber',{
       const filledSlot=nearbyFilledSlot(this.el);
       if(filledSlot){pickupPlacedCube(filledSlot,this.el);return}
       const cube=nearbyCube(this.el);
-      if(cube)attachCube(cube,this.el);
-      else sfx('wrong');
+      if(cube){attachCube(cube,this.el);return;}
+      const steal=remoteStealCandidate(this.el);
+      if(steal){sendMessage({type:'claim-cube',cubeId:steal.cubeId,hand:this.el.id==='left'?'left':'right'});return;}
+      sfx('wrong');
     };
     const emergency=()=>{if(state.held)releaseCube(true)};
     this.el.addEventListener('triggerdown',act);
-    this.el.addEventListener('abuttondown',()=>{
-      multiplayer.drawing=true;
-      multiplayer.drawingHand=this.el;
-      emitDrawPoint();
-    });
-    this.el.addEventListener('abuttonup',()=>{
-      multiplayer.drawing=false;
-      multiplayer.drawingHand=null;
-      flushDrawBatch();
-    });
+    this.el.addEventListener('abuttondown',()=>fireFreezeBeam(this.el));
     // Event handlers give immediate response; XR polling below guarantees
     // repeatable start/stop even if the headset misses xbuttonup.
     this.el.addEventListener('xbuttondown',()=>{
@@ -1459,6 +1518,7 @@ AFRAME.registerComponent('grabber',{
 
 function stepZeroGPhysics(time,dtMs){
   if(!state||!state.physics||state.paused)return;
+  if(multiplayer.connected&&multiplayer.physicsHostId&&multiplayer.physicsHostId!==multiplayer.playerId)return;
   const sec=Math.min(.04,Math.max(.001,(dtMs||16)/1000));
   const bodies=[...state.cubes,...state.hazards];
   const minX=-23.35,maxX=23.35,minY=.32,maxY=18.6,minZ=-23.35,maxZ=23.35;
@@ -1541,6 +1601,7 @@ AFRAME.registerComponent('floating-cube-physics',{
     // A-Frame tick is synchronized with renderer.setAnimationLoop and therefore
     // continues running inside the headset when normal requestAnimationFrame stops.
     if(!scene.is('vr-mode')||!state||state.paused)return;
+    if(performance.now()<multiplayer.frozenUntil)return;
     const safeDt=Math.min(50,Math.max(1,dt||16));
     stepZeroGPhysics(time,safeDt);
     this.lastXRTime=time;
@@ -1615,17 +1676,7 @@ AFRAME.registerComponent('xr-button-poller',{
       state.jetpack=false;
       stopJetSound();
     }
-
-    if(aPressed&&!this.prevA&&rightHand&&!state.gameOver){
-      multiplayer.drawing=true;
-      multiplayer.drawingHand=rightHand;
-      emitDrawPoint();
-    }
-    if(!aPressed&&this.prevA){
-      multiplayer.drawing=false;
-      multiplayer.drawingHand=null;
-      flushDrawBatch();
-    }
+    if(aPressed&&!this.prevA&&rightHand&&!state.gameOver){fireFreezeBeam(rightHand);}
 
     this.prevX=xPressed;
     this.prevA=aPressed;
@@ -1726,14 +1777,9 @@ function reset(){
   stopJetSound();
   const oldGameOver=document.getElementById('gameOverRoot');if(oldGameOver)oldGameOver.remove();
   const oldHud=document.getElementById('cornerHud');if(oldHud)oldHud.remove();
-  if(state?.drawingMesh){
-    game.object3D.remove(state.drawingMesh);
-    state.drawingMesh.geometry.dispose();
-    state.drawingMesh.material.dispose();
-  }
   game.innerHTML='';
-  state={held:null,heldBy:null,slots:[],cubes:[],complete:new Set(),start:Date.now(),physics:new Map(),hazards:[],gameOver:false,paused:false,jetpack:false,verticalVelocity:0,gameOverRoot:null,restartButton:null,hudPlanes:[],lastPlayerPos:null,lastSpeedTime:performance.now(),lastMeasuredSpeed:0,drawPoints:[],drawingMesh:null};
-  createDecor();createCornerHud();initDrawingLayer();
+  state={held:null,heldBy:null,slots:[],cubes:[],complete:new Set(),start:Date.now(),physics:new Map(),hazards:[],gameOver:false,paused:false,jetpack:false,verticalVelocity:0,gameOverRoot:null,restartButton:null,hudPlanes:[],lastPlayerPos:null,lastSpeedTime:performance.now(),lastMeasuredSpeed:0};
+  createDecor();createCornerHud();
   WORDS.forEach((word,i)=>createStation(word,i,0));
 
   // Exactly one cube for every required letter across all 20 mystery words.

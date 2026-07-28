@@ -1,16 +1,17 @@
-# Ordbyggaren Multiplayer v39
+# Ordbyggaren Multiplayer v40
 
-## Ändrat
-- Alla projektiler och all gammal skjutfunktion är borttagna.
-- A-knappen används endast för gemensam ritning.
-- Spelare skriver åter in ett valfritt rumsnamn.
-- Valet Fortsätt/Nytt är borttaget.
-- Ett befintligt aktivt rum fortsätter automatiskt.
-- Ett nytt eller fyra timmar gammalt rum startar tomt med valt tema.
-- Rummet nollställs automatiskt efter fyra timmar utan aktivitet.
-- Servern använder Durable Object alarms för automatisk nollställning.
-- Spelararmar begränsas till normal längd och händerna klampas till en rimlig räckvidd.
+## Gemensam bokstavsvärld
+Första anslutna spelaren är fysikvärd. Endast värden simulerar lösa bokstäver
+och skickar deras positioner till servern fem gånger per sekund. Alla andra
+headset visar serverns positioner. Vid frånkoppling väljs en ny värd automatiskt.
 
-## Kvar
-Åtta teman, gemensamma sparade ritningar, stabil spelarsynk, buren bokstav,
-1 poäng per rätt bokstav, 10 poäng per färdigt ord och celebration-bannern.
+## Ta och stjäla bokstäver
+Servern äger bokstavsanspråken. Den som tar en kub har tre sekunders skydd.
+Efter det kan en närstående spelare ta över kuben. När kuben låses rätt i ett
+ord upphör ägarskapet omedelbart och bokstaven är färdig.
+
+## Frysstråle
+Ritfunktionen är borttagen. Tryck A för en blå frysstråle. Träffad spelare
+fryses i ett synligt isblock och kan inte röra sig i tio sekunder.
+
+Övriga teman, sparning, poäng, celebration och fyra timmars rumsrensning finns kvar.
