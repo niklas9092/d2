@@ -193,8 +193,9 @@ export class GameRoom extends DurableObject {
         const key = `${slot.wordkey}:${slot.index}`;
         if (!oldLocked.has(key)) newCorrectLetters += 1;
       }
-      let newWords = 0;
-      for (const key of nextComplete) if (!oldComplete.has(key)) newWords += 1;
+      const newlyCompleted = [];
+      for (const key of nextComplete) if (!oldComplete.has(key)) newlyCompleted.push(key);
+      const newWords = newlyCompleted.length;
 
       game.scores[playerId].score += newCorrectLetters + newWords * 10;
       game.slots = nextSlots;
@@ -204,6 +205,22 @@ export class GameRoom extends DurableObject {
       // including each correct locked letter.
       await this.ctx.storage.put("game", game);
       await this.broadcast({ type: "state", players: this.playerObject(), scores: game.scores, state: { slots: game.slots, complete: game.complete } });
+
+      const labels = new Map(
+        (Array.isArray(data.state.completedWords) ? data.state.completedWords : [])
+          .filter(item => item && typeof item.key === "string")
+          .map(item => [item.key, String(item.word || "").slice(0, 24)])
+      );
+      for (const key of newlyCompleted) {
+        const word = labels.get(key) || "WORD";
+        await this.broadcast({
+          type: "celebration",
+          playerId,
+          playerName: name,
+          word,
+        });
+      }
+
       await this.updateLobby(room, game);
       return;
     }

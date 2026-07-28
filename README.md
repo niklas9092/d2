@@ -1,18 +1,19 @@
-# Fruktbyggaren Cloudflare Multiplayer v33
+# Mystikbyggaren Multiplayer v34
 
-## Kritiska multiplayerfixar
-- En ny spelare skickar aldrig en tom lokal spelstatus vid anslutning.
-- Serverns sparade rum är alltid auktoritativt vid `welcome`.
-- Att någon ansluter kan därför inte längre starta om spelet.
-- Spelarpositioner skickas från en A-Frame-komponent som körs i WebXR-renderloopen.
-- Figurer jämnas ut i samma WebXR-loop; de fryser inte när vanlig browser-RAF pausas.
-- Huvud, händer, armar och buren bokstav synkroniseras.
-- Senaste pose sparas i WebSocket-attachment och skickas direkt till nya spelare.
-- Figurer döljs först efter ett verkligt långt anslutningsavbrott.
+Försiktig uppdatering ovanpå den stabila v33.
 
-## Poäng och sparning
-- Varje korrekt låst bokstav sparas i Durable Object-lagringen och ger 1 poäng.
+## Nytt
+- 20 ord inom godhet, ondska och mystik.
+- När ett ord blir klart skickar servern en gemensam celebration-händelse.
+- Alla spelare ser en stor VR-text: “SPELARE KLARADE ETT ORD — WORD”.
+- Texten glider in, stannar tydligt framför spelaren och fortsätter sedan ut.
+- Svenska skyltar har renare typografi, bättre kontrast och större marginaler.
+- Väggtexterna har tagits bort; endast infotavlan återstår.
+- Startskärmen är förenklad och visar bara version, kort information, spelarnamn och rumskod.
+- Rumlista och raderingsgränssnitt är borttagna från startskärmen.
+
+## Oförändrat
+- Stabil multiplayer-synk från v33.
+- En ny spelare återställer inte spelet.
+- Rätt bokstav sparas direkt och ger 1 poäng.
 - Färdigt ord ger ytterligare 10 poäng.
-- Rumstatus återställs från servern när en spelare ansluter.
-
-Ladda upp filerna till samma GitHub-repository och gör en commit.

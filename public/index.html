@@ -24,16 +24,6 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 #versionBadge{display:inline-block;margin:2px 0 12px;padding:5px 11px;border-radius:999px;background:#5ee7ff22;border:1px solid #5ee7ff66;color:#85efff;font-weight:900}
 #joinInfo{background:#061120;border:1px solid #ffffff1c;border-radius:14px;padding:13px 15px;margin:12px 0;color:#c9d9e9}
 #joinError{min-height:22px;margin-top:8px;color:#ff8eab;font-weight:900}
-#roomBrowser{margin-top:18px;padding-top:16px;border-top:1px solid #ffffff20}
-#roomBrowserHead{display:flex;justify-content:space-between;align-items:center;gap:10px}
-#roomBrowser h2{font-size:20px;margin:0}
-#refreshRooms{width:auto;margin:0;padding:8px 13px;font-size:14px}
-#roomList{display:grid;gap:8px;margin-top:10px}
-.roomRow{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;background:#071426;border:1px solid #ffffff18;border-radius:12px;padding:10px 12px}
-.roomMeta{font-size:14px;color:#9fb4c9}
-.roomJoin,.roomDelete{width:auto;margin:0;padding:8px 12px;font-size:13px}
-.roomDelete{background:#71263a}
-.emptyRooms{color:#8fa5ba;padding:12px 2px}
 
 #tip{position:fixed;z-index:20;left:50%;bottom:14px;transform:translateX(-50%);padding:10px 16px;border-radius:999px;background:#06101ee8;color:#fff;font-weight:800;text-align:center;max-width:92vw}
 </style>
@@ -41,25 +31,17 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <body>
 <div id="joinOverlay">
   <div id="joinCard">
-    <h1>Fruktbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V33</div>
+    <h1>Mystikbyggaren Multiplayer</h1>
+    <div id="versionBadge">VERSION V34</div>
     <div id="joinInfo">
-      Lär dig 20 frukter på engelska tillsammans. Varje korrekt bokstav sparas direkt och ger 1 poäng. Ett färdigt ord ger dessutom 10 poäng.
-      Samma spelarnamn kan bara användas av en person i varje rum.
+      Bygg 20 engelska ord tillsammans i ett tema av ljus, mörker och mystik.
+      Varje korrekt bokstav sparas direkt och ger 1 poäng. Ett färdigt ord ger ytterligare 10 poäng.
+      Alla i rummet ser varandra och får en gemensam notis när ett ord blir klart.
     </div>
     <input id="playerName" maxlength="12" value="" placeholder="DITT SPELARNAMN" autocomplete="off">
-    <input id="roomCode" maxlength="12" value="" placeholder="NY ELLER BEFINTLIG RUMSKOD" autocomplete="off">
-    <button id="joinButton">ANSLUT TILL RUM • V33</button>
+    <input id="roomCode" maxlength="12" value="" placeholder="RUMSKOD" autocomplete="off">
+    <button id="joinButton">ANSLUT TILL RUM • V34</button>
     <div id="joinError"></div>
-
-    <div id="roomBrowser">
-      <div id="roomBrowserHead">
-        <h2>Befintliga rum</h2>
-        <button id="refreshRooms" class="alt">UPPDATERA</button>
-      </div>
-      <div class="roomMeta">Tomma rum kan raderas. Rum med spelare kvar skyddas.</div>
-      <div id="roomList"><div class="emptyRooms">Hämtar rum…</div></div>
-    </div>
   </div>
 </div>
 <div id="multiStatus">
@@ -67,7 +49,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V33</button>
+  <button id="enterVr">STARTA VR • V34</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. Använd endast TRIGGER för att ta och släppa kuber.</div>
@@ -119,26 +101,26 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 
 <script>
 const ANIMAL_WORDS=[
-  {sv:'ÄPPLE',en:'APPLE'},
-  {sv:'PÄRON',en:'PEAR'},
-  {sv:'BANAN',en:'BANANA'},
-  {sv:'APELSIN',en:'ORANGE'},
-  {sv:'CITRON',en:'LEMON'},
-  {sv:'LIME',en:'LIME'},
-  {sv:'MANGO',en:'MANGO'},
-  {sv:'PAPAYA',en:'PAPAYA'},
-  {sv:'ANANAS',en:'PINEAPPLE'},
-  {sv:'VINDRUVA',en:'GRAPE'},
-  {sv:'JORDGUBBE',en:'STRAWBERRY'},
-  {sv:'HALLON',en:'RASPBERRY'},
-  {sv:'BLÅBÄR',en:'BLUEBERRY'},
-  {sv:'BJÖRNBÄR',en:'BLACKBERRY'},
-  {sv:'KÖRSBÄR',en:'CHERRY'},
-  {sv:'PERSIKA',en:'PEACH'},
-  {sv:'PLOMMON',en:'PLUM'},
-  {sv:'KIWI',en:'KIWI'},
-  {sv:'GRANATÄPPLE',en:'POMEGRANATE'},
-  {sv:'VATTENMELON',en:'WATERMELON'}
+  {sv:'ÄNGEL',en:'ANGEL'},
+  {sv:'HJÄLTE',en:'HERO'},
+  {sv:'MOD',en:'COURAGE'},
+  {sv:'HOPP',en:'HOPE'},
+  {sv:'LJUS',en:'LIGHT'},
+  {sv:'FRED',en:'PEACE'},
+  {sv:'VÄN',en:'FRIEND'},
+  {sv:'SKYDD',en:'PROTECTION'},
+  {sv:'VISDOM',en:'WISDOM'},
+  {sv:'SANNING',en:'TRUTH'},
+  {sv:'DEMON',en:'DEMON'},
+  {sv:'SKUGGA',en:'SHADOW'},
+  {sv:'SPÖKE',en:'GHOST'},
+  {sv:'HÄXA',en:'WITCH'},
+  {sv:'FÖRBANNELSE',en:'CURSE'},
+  {sv:'MÖRKER',en:'DARKNESS'},
+  {sv:'HEMLIGHET',en:'SECRET'},
+  {sv:'MAGI',en:'MAGIC'},
+  {sv:'PROFETIA',en:'PROPHECY'},
+  {sv:'MYSTERIUM',en:'MYSTERY'}
 ];
 const WORDS=[...ANIMAL_WORDS];
 const ALPHABET='ABCDEFGHIJKLMNOPQRSTUVWXYZÅÄÖ';
@@ -155,48 +137,7 @@ const multiplayer={
 
 
 
-const GAME_VERSION='v33';
-
-async function loadRooms(){
-  const list=document.getElementById('roomList');
-  if(!list)return;
-  list.innerHTML='<div class="emptyRooms">Hämtar rum…</div>';
-  try{
-    const response=await fetch('/api/rooms',{cache:'no-store'});
-    if(!response.ok)throw new Error('Kunde inte hämta rum');
-    const data=await response.json();
-    const rooms=Array.isArray(data.rooms)?data.rooms:[];
-    if(!rooms.length){
-      list.innerHTML='<div class="emptyRooms">Inga rum finns ännu. Skriv en ny rumskod ovan.</div>';
-      return;
-    }
-    list.innerHTML='';
-    rooms.forEach(room=>{
-      const row=document.createElement('div');row.className='roomRow';
-      const info=document.createElement('div');
-      const age=room.updatedAt?new Date(room.updatedAt).toLocaleString('sv-SE'):''; 
-      info.innerHTML=`<strong>${room.name}</strong><div class="roomMeta">${room.players} spelare • ${room.words||0} ord klara${age?' • '+age:''}</div>`;
-      const join=document.createElement('button');join.className='roomJoin';join.textContent='VÄLJ';
-      join.onclick=()=>{document.getElementById('roomCode').value=room.name;document.getElementById('playerName').focus();};
-      const del=document.createElement('button');del.className='roomDelete';del.textContent='RADERA';
-      del.disabled=Number(room.players)>0;
-      del.title=del.disabled?'Rummet används och kan inte raderas':'Radera det tomma rummet';
-      del.onclick=async()=>{
-        if(!confirm(`Radera det tomma rummet ${room.name}?`))return;
-        const res=await fetch('/api/rooms/'+encodeURIComponent(room.name),{method:'DELETE'});
-        const result=await res.json().catch(()=>({}));
-        if(!res.ok)alert(result.message||'Rummet kunde inte raderas.');
-        await loadRooms();
-      };
-      row.append(info,join,del);list.appendChild(row);
-    });
-  }catch(error){
-    list.innerHTML='<div class="emptyRooms">Rumlistan kunde inte hämtas. Spelet går ändå att starta.</div>';
-  }
-}
-document.getElementById('refreshRooms').onclick=loadRooms;
-loadRooms();
-setInterval(()=>{if(document.getElementById('joinOverlay').style.display!=='none')loadRooms();},10000);
+const GAME_VERSION='v34';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,12)||fallback);
@@ -239,7 +180,11 @@ function connectMultiplayer(){
 function currentNetworkState(){
   return {
     slots:state.slots.map(slot=>({wordkey:slot.dataset.wordkey,index:Number(slot.dataset.index),filled:slot.dataset.filled==='true',locked:slot.dataset.locked==='true',cube:slot.dataset.cube||''})),
-    complete:[...state.complete]
+    complete:[...state.complete],
+    completedWords:[...state.complete].map(key=>{
+      const slots=slotsForWord(key);
+      return {key,word:slots[0]?.dataset.target||''};
+    })
   };
 }
 function sendMessage(message){
@@ -250,6 +195,87 @@ function sendMessage(message){
 function sendGameState(reason='update'){
   if(!multiplayer.applying)sendMessage({type:'state',reason,state:currentNetworkState()});
 }
+
+const celebrationQueue=[];
+let celebrationPlaying=false;
+
+function makeCelebrationTexture(playerName,word){
+  const c=document.createElement('canvas');
+  c.width=1800;c.height=360;
+  const x=c.getContext('2d');
+  const family='"Trebuchet MS","Segoe UI",Verdana,Arial,sans-serif';
+  const gradient=x.createLinearGradient(0,0,c.width,0);
+  gradient.addColorStop(0,'rgba(8,16,36,0)');
+  gradient.addColorStop(.12,'rgba(18,28,58,.96)');
+  gradient.addColorStop(.5,'rgba(68,38,104,.98)');
+  gradient.addColorStop(.88,'rgba(18,28,58,.96)');
+  gradient.addColorStop(1,'rgba(8,16,36,0)');
+  x.fillStyle=gradient;x.fillRect(0,0,c.width,c.height);
+  x.strokeStyle='#d9bcff';x.lineWidth=7;x.beginPath();x.moveTo(180,18);x.lineTo(1620,18);x.moveTo(180,342);x.lineTo(1620,342);x.stroke();
+  x.textAlign='center';x.textBaseline='middle';
+  x.shadowColor='#9c70ff';x.shadowBlur=28;
+  x.font=`900 82px ${family}`;x.fillStyle='#ffffff';
+  x.fillText(`${String(playerName).toUpperCase()} KLARADE ETT ORD`,900,120);
+  x.shadowColor='#65e7ff';x.shadowBlur=22;
+  let size=116;
+  do{x.font=`900 ${size}px ${family}`;if(x.measureText(word).width<1350)break;size-=4;}while(size>60);
+  x.fillStyle='#8ff3ff';x.fillText(String(word).toUpperCase(),900,245);
+  const texture=new THREE.CanvasTexture(c);
+  texture.colorSpace=THREE.SRGBColorSpace;
+  texture.minFilter=THREE.LinearFilter;texture.magFilter=THREE.LinearFilter;
+  texture.generateMipmaps=false;
+  return texture;
+}
+
+function showWordCelebration(playerName,word){
+  if(!word)return;
+  celebrationQueue.push({playerName:playerName||'SPELARE',word});
+  playNextCelebration();
+}
+
+function playNextCelebration(){
+  if(celebrationPlaying||!celebrationQueue.length)return;
+  celebrationPlaying=true;
+  const item=celebrationQueue.shift();
+  const camera=document.getElementById('camera');
+  if(!camera){celebrationPlaying=false;return;}
+
+  const banner=document.createElement('a-plane');
+  banner.setAttribute('width','5.8');
+  banner.setAttribute('height','1.16');
+  banner.setAttribute('position','5.8 .35 -3.4');
+  banner.setAttribute('material','shader:flat;transparent:true;depthTest:false;side:double');
+  camera.appendChild(banner);
+  applyTexture(banner,makeCelebrationTexture(item.playerName,item.word));
+
+  const start=performance.now(),duration=5200;
+  function animate(now){
+    if(!banner.isConnected){celebrationPlaying=false;playNextCelebration();return;}
+    const t=Math.min(1,(now-start)/duration);
+    // Snabbt in, lugnt framför spelaren, sedan ut åt vänster.
+    let x;
+    if(t<.24){
+      const u=t/.24;x=5.8+(0.0-5.8)*(1-Math.pow(1-u,3));
+    }else if(t<.72){
+      x=0;
+    }else{
+      const u=(t-.72)/.28;x=0+(-6.2)*(u*u);
+    }
+    banner.object3D.position.x=x;
+    const scale=t<.12?.86+.14*(t/.12):1;
+    banner.object3D.scale.set(scale,scale,scale);
+    if(t<1)requestAnimationFrame(animate);
+    else{
+      const mesh=banner.getObject3D('mesh');
+      if(mesh?.material?.map)mesh.material.map.dispose();
+      banner.remove();
+      celebrationPlaying=false;
+      setTimeout(playNextCelebration,180);
+    }
+  }
+  requestAnimationFrame(animate);
+}
+
 function handleServerMessage(message){
   if(message.type==='join-error'){
     multiplayer.intentionalClose=true;
@@ -257,7 +283,7 @@ function handleServerMessage(message){
     document.getElementById('joinOverlay').style.display='flex';
     document.getElementById('connectionText').textContent=message.message||'Namnet används redan';
     document.getElementById('joinError').textContent=message.message||'Det namnet används redan i rummet.';
-    loadRooms();
+    
     try{multiplayer.socket.close()}catch(e){}
     return;
   }
@@ -274,7 +300,7 @@ function handleServerMessage(message){
         updateRemoteAvatar(id,player.name||'SPELARE',pose);
       }
     }
-    loadRooms();
+    
     multiplayer.lastPoseSignature='';
     multiplayer.lastPoseAt=0;
     sendPose(true);
@@ -282,6 +308,7 @@ function handleServerMessage(message){
   }
   if(message.type==='presence'){multiplayer.players=message.players||{};multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();return;}
   if(message.type==='pose'){updateRemoteAvatar(message.playerId,message.playerName||(multiplayer.players[message.playerId]||{}).name||'SPELARE',message.pose);return;}
+  if(message.type==='celebration'){showWordCelebration(message.playerName,message.word);return;}
   if(message.type==='state'){
     multiplayer.players=message.players||multiplayer.players;multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();applyAuthoritativeState(message.state);return;
   }
@@ -525,7 +552,7 @@ function makeCanvas(text,bg='#ffffff',fg='#142744',w=512,h=512,fontPx=300,sub=''
   x.fillStyle=bg;x.fillRect(0,0,w,h);
   x.strokeStyle='rgba(255,255,255,.35)';x.lineWidth=Math.max(4,w*.012);x.strokeRect(8,8,w-16,h-16);
   x.textAlign='center';x.textBaseline='middle';
-  const family='"Arial Rounded MT Bold","Trebuchet MS",Verdana,Arial,sans-serif';
+  const family='"Trebuchet MS","Segoe UI",Verdana,Arial,sans-serif';
   const fit=(value,maxPx,maxWidth)=>{
     let px=maxPx;
     do{x.font=`900 ${px}px ${family}`;if(x.measureText(value).width<=maxWidth)break;px-=4;}while(px>24);
@@ -533,7 +560,7 @@ function makeCanvas(text,bg='#ffffff',fg='#142744',w=512,h=512,fontPx=300,sub=''
   };
   const mainY=sub?h*.40:h*.52;
   const mainPx=fit(String(text),fontPx,w*.86);
-  x.font=`900 ${mainPx}px ${family}`;
+  x.font=`800 ${mainPx}px ${family}`;
   x.lineJoin='round';x.lineWidth=Math.max(2,mainPx*.035);x.strokeStyle='rgba(0,0,0,.18)';
   x.strokeText(String(text),w/2,mainY);x.fillStyle=fg;x.fillText(String(text),w/2,mainY);
   if(sub){
@@ -689,8 +716,8 @@ function createStation(entry,i,roomIndex){
 
   root.appendChild(box([0,1,0],[w,1.62,.55],baseColor));
   root.appendChild(planeLabel(
-    entry.sv,[0,1.28,.3],Math.max(1.8,entry.sv.length*.58),.50,
-    '#f3f7ff','#142744',152
+    entry.sv,[0,1.28,.3],Math.max(2.2,entry.sv.length*.62),.56,
+    '#0b1729','#f4f8ff',142
   ));
 
   const gap=.58,start=-(target.length-1)*gap/2;
@@ -734,13 +761,11 @@ function createDecor(){
     game.appendChild(box([-24.82,10,i],[.07,18,.07],'#ffd05b'));
     game.appendChild(box([24.82,10,i],[.07,18,.07],'#a879ff'));
   }
-  game.appendChild(planeLabel('FRUKTRUMMET',[0,12.65,-24.75],12,1.5,'#15233a','#ffffff',112));
-  game.appendChild(planeLabel('LÄR DIG 20 FRUKTER PÅ ENGELSKA',[0,11.25,-24.74],14,.68,'#15233a','#72f0bb',68));
 }
 function createHud(){
   const hud=document.createElement('a-entity');hud.id='hud';hud.setAttribute('position','0 3.4 8.3');hud.setAttribute('rotation','0 180 0');
   hud.appendChild(box([0,0,0],[5.7,1.25,.15],'#102743'));
-  hud.appendChild(planeLabel('20 FRUKTER • ENGELSK TRÄNING',[0,.28,.09],4.6,.43,'#102743','#ffffff',112));
+  hud.appendChild(planeLabel('20 ORD • LJUS, MÖRKER OCH MYSTIK',[0,.28,.09],4.6,.43,'#102743','#ffffff',112));
   const status=planeLabel('0 / 10 KLARA',[0,-.18,.09],3.5,.38,'#102743','#58e4c9',112);status.id='statusPlane';hud.appendChild(status);
   game.appendChild(hud);
 }
@@ -773,7 +798,7 @@ function makeHudTexture(){
   x.strokeStyle='rgba(255,255,255,.18)';x.lineWidth=3;x.strokeRect(42,42,c.width-84,c.height-84);
 
   x.textAlign='left';
-  x.font=`900 112px ${family}`;x.fillStyle='#f4fdff';x.fillText('FRUKTBYGGAREN',72,105);
+  x.font=`900 112px ${family}`;x.fillStyle='#f4fdff';x.fillText('MYSTIKBYGGAREN',72,105);
   x.font=`800 46px ${family}`;x.fillStyle='#72eaff';x.fillText(`VERSION ${GAME_VERSION.toUpperCase()}  •  RUM ${multiplayer.room}`,76,205);
 
   const sec=Math.floor((Date.now()-state.start)/1000);
@@ -1575,7 +1600,7 @@ function reset(){
   createDecor();createCornerHud();
   WORDS.forEach((word,i)=>createStation(word,i,0));
 
-  // Exactly one cube for every required letter across all 20 fruit words.
+  // Exactly one cube for every required letter across all 20 mystery words.
   const letters=seededShuffle(WORDS.map(word=>word.en).join('').split(''),multiplayer.room);
   letters.forEach(createCube);
   // Odödligt läge: inga dödliga röda kuber skapas.
