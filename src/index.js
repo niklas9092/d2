@@ -19,7 +19,12 @@ export class RoomLobby extends DurableObject{async fetch(){return Response.json(
 
 export class GameRoom extends DurableObject{
   constructor(ctx,env){
-    super(ctx,env);this.ctx=ctx;this.env=env;this.players=new Map();this.lastTouchWrite=0;
+    super(ctx,env);
+    this.ctx=ctx;this.env=env;this.players=new Map();this.lastTouchWrite=0;
+    this.liveCubes=null;
+    this.liveHostId="";
+    this.liveLastCubeSyncAt=Date.now();
+    this.lastCubePersistAt=0;
     for(const ws of ctx.getWebSockets()){
       const a=ws.deserializeAttachment();
       if(a?.playerId)this.players.set(a.playerId,{name:a.name||"SPELARE",clientKey:a.clientKey||a.playerId});
@@ -68,14 +73,18 @@ export class GameRoom extends DurableObject{
     game.cubes=Array.isArray(game.cubes)?game.cubes:[];
     game.cubeOwners=game.cubeOwners||{};
     game.freezeCooldowns=game.freezeCooldowns||{};
+    if(this.liveCubes===null)this.liveCubes=game.cubes;
     const activeIds=this.activePlayerIds();
     if(!game.physicsHostId||!activeIds.includes(game.physicsHostId))game.physicsHostId=this.chooseHost();
+    if(!this.liveHostId)this.liveHostId=game.physicsHostId||"";
 
     const playerId=clientKey,pair=new WebSocketPair(),[client,server]=Object.values(pair);
     server.serializeAttachment({playerId,name,clientKey,room});this.ctx.acceptWebSocket(server);
     this.players.set(playerId,{name,clientKey});
     game.scores[playerId]||={name,score:0};game.scores[playerId].name=name;
     if(!game.physicsHostId)game.physicsHostId=playerId;
+    this.liveHostId=game.physicsHostId;
+    this.liveLastCubeSyncAt=Date.now();
     await this.touch(game,true);
 
     const poses={};for(const existing of this.ctx.getWebSockets()){
@@ -83,12 +92,12 @@ export class GameRoom extends DurableObject{
       if(info.playerId&&info.latestPose)poses[info.playerId]=info.latestPose;
     }
     server.send(JSON.stringify({type:"welcome",playerId,players:this.playerObject(),scores:game.scores,
-      theme:game.theme,state:{slots:game.slots,complete:game.complete},poses,cubes:game.cubes,
-      cubeOwners:game.cubeOwners,physicsHostId:game.physicsHostId,cubeSeq:Number(game.cubeSeq)||0}));
+      theme:game.theme,state:{slots:game.slots,complete:game.complete},poses,cubes:(this.liveCubes||game.cubes),
+      cubeOwners:game.cubeOwners,physicsHostId:this.liveHostId}));
     await this.broadcastPresence(game);
-    await this.broadcast({type:"physics-host",playerId:game.physicsHostId});
-    if(game.physicsHostId){
-      await this.sendTo(game.physicsHostId,{type:"request-cube-sync"});
+    await this.broadcast({type:"physics-host",playerId:this.liveHostId});
+    if(this.liveHostId){
+      await this.sendTo(this.liveHostId,{type:"request-cube-sync"});
     }
     return new Response(null,{status:101,webSocket:client});
   }
@@ -102,19 +111,47 @@ export class GameRoom extends DurableObject{
       ws.serializeAttachment({...a,latestPose:data.pose});await this.touch(game,false);
       await this.broadcastExcept(ws,{type:"pose",playerId,playerName:name,pose:data.pose});return;
     }
-    if(data.type==="cube-sync"&&playerId===game.physicsHostId&&Array.isArray(data.cubes)){
-      game.cubeSeq=(Number(game.cubeSeq)||0)+1;
-      game.lastCubeSyncAt=Date.now();
-      game.cubes=data.cubes.slice(0,260);
-      await this.touch(game,false);
-      await this.broadcastExcept(ws,{type:"cube-sync",seq:game.cubeSeq,cubes:game.cubes});
+    if(data.type==="cube-sync"&&Array.isArray(data.cubes)){
+      const authoritativeHost=this.liveHostId||game.physicsHostId||"";
+      if(playerId!==authoritativeHost)return;
+
+      const now=Date.now();
+      const live=data.cubes.slice(0,260);
+      this.liveCubes=live;
+      this.liveLastCubeSyncAt=now;
+      this.liveHostId=playerId;
+
+      // WebSocket broadcasts from one Durable Object are already ordered.
+      // No sequence gate is needed on clients.
+      await this.broadcastExcept(ws,{type:"cube-sync",cubes:live});
+
+      // Persist only occasionally; live multiplayer uses the in-memory stream.
+      if(now-this.lastCubePersistAt>=5000){
+        this.lastCubePersistAt=now;
+        game.cubes=live;
+        game.physicsHostId=playerId;
+        game.lastCubeSyncAt=now;
+        game.lastActivity=now;
+        await this.ctx.storage.put("game",game);
+        await this.ctx.storage.setAlarm(now+FOUR_HOURS);
+      }
       return;
     }
     if(data.type==="host-timeout"){
       const now=Date.now();
-      const stale=now-Number(game.lastCubeSyncAt||0)>1200;
       const active=this.activePlayerIds();
-      if(stale&&active.includes(playerId)){
+      const currentHost=this.liveHostId||game.physicsHostId||"";
+      const hostIsActive=currentHost&&active.includes(currentHost);
+      const streamIsFresh=now-this.liveLastCubeSyncAt<2500;
+
+      if(hostIsActive&&streamIsFresh){
+        await this.sendTo(currentHost,{type:"request-cube-sync"});
+        return;
+      }
+
+      if(active.includes(playerId)){
+        this.liveHostId=playerId;
+        this.liveLastCubeSyncAt=now;
         game.physicsHostId=playerId;
         game.lastCubeSyncAt=now;
         await this.touch(game,true);
@@ -196,15 +233,28 @@ export class GameRoom extends DurableObject{
     }
   }
   async webSocketClose(ws){
-    const a=ws.deserializeAttachment()||{};if(a.playerId)this.players.delete(a.playerId);
+    const a=ws.deserializeAttachment()||{};
+    if(a.playerId)this.players.delete(a.playerId);
     const game=(await this.ctx.storage.get("game"))||this.emptyGame();
-    for(const[cubeId,owner]of Object.entries(game.cubeOwners||{}))if(owner.ownerId===a.playerId)delete game.cubeOwners[cubeId];
-    if(game.physicsHostId===a.playerId||!this.activePlayerIds().includes(game.physicsHostId)){
-      game.physicsHostId=this.chooseHost(a.playerId);
+
+    for(const[cubeId,owner]of Object.entries(game.cubeOwners||{})){
+      if(owner.ownerId===a.playerId)delete game.cubeOwners[cubeId];
     }
+
+    const active=this.activePlayerIds();
+    const currentHost=this.liveHostId||game.physicsHostId||"";
+    if(currentHost===a.playerId||!active.includes(currentHost)){
+      const replacement=this.chooseHost(a.playerId);
+      this.liveHostId=replacement;
+      this.liveLastCubeSyncAt=Date.now();
+      game.physicsHostId=replacement;
+    }
+
+    if(this.liveCubes)game.cubes=this.liveCubes;
     await this.touch(game,true);
     await this.broadcastPresence(game);
-    await this.broadcast({type:"physics-host",playerId:game.physicsHostId});
+    await this.broadcast({type:"physics-host",playerId:this.liveHostId});
+    if(this.liveHostId)await this.sendTo(this.liveHostId,{type:"request-cube-sync"});
   }
   async webSocketError(ws){await this.webSocketClose(ws);}
   cleanName(v){return String(v||"").toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,"").slice(0,12);}

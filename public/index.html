@@ -34,7 +34,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Ordbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V46</div>
+    <div id="versionBadge">VERSION V47</div>
     <div id="joinInfo">
       Skriv ditt namn och ett gemensamt rumsnamn. Ett rum sparar tema, ord, poäng och ritningar.
       Efter fyra timmar helt utan aktivitet nollställs rummet automatiskt.
@@ -53,7 +53,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
       <option value="body">Kroppen</option>
       <option value="city">Resor & staden</option>
     </select>
-    <button id="joinButton">GÅ IN I RUMMET • V46</button>
+    <button id="joinButton">GÅ IN I RUMMET • V47</button>
     <div id="joinError"></div>
   </div>
 </div>
@@ -62,7 +62,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V46</button>
+  <button id="enterVr">STARTA VR • V47</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. TRIGGER tar, släpper och kan stjäla bokstäver efter 3 sekunder. A skjuter frysstråle.</div>
@@ -146,7 +146,7 @@ const multiplayer={
 
 
 
-const GAME_VERSION='v46';
+const GAME_VERSION='v47';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,'').slice(0,16)||fallback);
@@ -405,15 +405,16 @@ function handleServerMessage(message){
   if(message.type==='pose'){updateRemoteAvatar(message.playerId,message.playerName||(multiplayer.players[message.playerId]||{}).name||'SPELARE',message.pose);return;}
   if(message.type==='celebration'){showWordCelebration(message.playerName,message.word);return;}
   if(message.type==='cube-sync'){
-    if(Number(message.seq||0)<=multiplayer.cubeSeq)return;
-    multiplayer.cubeSeq=Number(message.seq||0);
     multiplayer.lastCubePacketAt=performance.now();
     applyCubeSnapshot(message.cubes||[],false);
     return;
   }
   if(message.type==='physics-host'){
-    multiplayer.physicsHostId=message.playerId||'';
+    const nextHost=message.playerId||'';
+    const becomingHost=nextHost===multiplayer.playerId&&multiplayer.physicsHostId!==multiplayer.playerId;
+    multiplayer.physicsHostId=nextHost;
     multiplayer.lastCubePacketAt=performance.now();
+    if(becomingHost)multiplayer.cubeTargets.clear();
     return;
   }
   if(message.type==='request-cube-sync'){
@@ -1834,7 +1835,7 @@ AFRAME.registerComponent('grabber',{
 
 function stepZeroGPhysics(time,dtMs){
   if(!state||!state.physics||state.paused)return;
-  if(multiplayer.connected&&multiplayer.physicsHostId&&multiplayer.physicsHostId!==multiplayer.playerId)return;
+  if(multiplayer.connected&&multiplayer.playerId&&multiplayer.physicsHostId!==multiplayer.playerId)return;
   const sec=Math.min(.04,Math.max(.001,(dtMs||16)/1000));
   const bodies=[...state.cubes,...state.hazards];
   const minX=-23.35,maxX=23.35,minY=.32,maxY=18.6,minZ=-23.35,maxZ=23.35;
