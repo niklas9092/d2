@@ -1,19 +1,21 @@
-# Mystikbyggaren Multiplayer v36
+# Ordbyggaren Multiplayer v38
 
-Korrigering av den vita celebration-rutan i v35.
+## Start
+- Fem fasta rum: RUM 1–5.
+- Välj Fortsätt spel eller Starta nytt.
+- Välj tema när ett nytt spel startas.
+- Fortsätt spel använder rummets redan sparade tema och framsteg.
 
-## Orsak
-A-Frame hann skapa eller återställa sitt standardmaterial på `a-plane`.
-Canvastexturen kunde därför ersättas av en vit standardyta.
+## Åtta teman
+Djur, Frukter, Ljus/mörker/mystik, Natur/väder, Rymden, Hemmet,
+Kroppen och Resor/staden. Varje tema innehåller 20 svenska ord med engelska svar.
 
-## Lösning
-Celebration-bannern är nu ett vanligt `a-entity` med:
-- egen `THREE.PlaneGeometry`
-- egen `THREE.MeshBasicMaterial`
-- canvastexturen direkt som materialets `map`
-- avstängd depth test och depth write
-- hög renderOrder
-- explicit texture update
-- korrekt städning av texture, material och geometry
+## Gemensam ritning
+Håll A-knappen på kontrollen för att rita med lysande bollar.
+Ritpunkterna skickas i små grupper, visas direkt för alla och sparas i rummets
+Durable Object. De senaste 600 punkterna sparas per rum för stabil prestanda.
+Starta nytt spel eller Nytt spel tömmer också ritningen.
 
-Animationen körs fortfarande i A-Frames WebXR-loop.
+## Oförändrat
+Stabil spelarsynk, buren bokstav, direkt sparning av rätt bokstäver,
+1 poäng per rätt bokstav, 10 extra per färdigt ord och celebration-bannern.
