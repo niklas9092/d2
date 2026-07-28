@@ -34,7 +34,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Ordbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V41</div>
+    <div id="versionBadge">VERSION V42</div>
     <div id="joinInfo">
       Skriv ditt namn och ett gemensamt rumsnamn. Ett rum sparar tema, ord, poäng och ritningar.
       Efter fyra timmar helt utan aktivitet nollställs rummet automatiskt.
@@ -53,7 +53,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
       <option value="body">Kroppen</option>
       <option value="city">Resor & staden</option>
     </select>
-    <button id="joinButton">GÅ IN I RUMMET • V41</button>
+    <button id="joinButton">GÅ IN I RUMMET • V42</button>
     <div id="joinError"></div>
   </div>
 </div>
@@ -62,7 +62,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V41</button>
+  <button id="enterVr">STARTA VR • V42</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. TRIGGER tar, släpper och kan stjäla bokstäver efter 3 sekunder. A skjuter frysstråle.</div>
@@ -141,12 +141,12 @@ let audioCtx=null;
 const multiplayer={
   clientKey:sessionStorage.getItem('djurClientKey')||crypto.randomUUID(),
   socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
-  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',physicsHostId:'',cubeOwners:{},frozenUntil:0,lastCubeSync:0
+  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',physicsHostId:'',cubeOwners:{},frozenUntil:0,lastCubeSync:0,cubeTargets:new Map(),cubeSeq:0,freezeLock:null,freezeTimer:null
 };
 
 
 
-const GAME_VERSION='v41';
+const GAME_VERSION='v42';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,'').slice(0,16)||fallback);
@@ -380,6 +380,7 @@ function handleServerMessage(message){
     multiplayer.scores=message.scores||{};
     multiplayer.physicsHostId=message.physicsHostId||'';
     multiplayer.cubeOwners=message.cubeOwners||{};
+    multiplayer.cubeSeq=Number(message.cubeSeq||0);
     if(message.theme&&message.theme!==currentThemeId){
       setTheme(message.theme);
       reset();
@@ -387,7 +388,7 @@ function handleServerMessage(message){
     removeMissingAvatars();
     renderMultiplayerStatus();
     if(message.state)applyAuthoritativeState(message.state);
-    if(message.cubes)applyCubeSnapshot(message.cubes);
+    if(message.cubes)applyCubeSnapshot(message.cubes,true);
     if(message.poses){
       for(const [id,pose] of Object.entries(message.poses)){
         const player=multiplayer.players[id]||{};
@@ -403,14 +404,20 @@ function handleServerMessage(message){
   if(message.type==='presence'){multiplayer.players=message.players||{};multiplayer.scores=message.scores||multiplayer.scores;removeMissingAvatars();renderMultiplayerStatus();return;}
   if(message.type==='pose'){updateRemoteAvatar(message.playerId,message.playerName||(multiplayer.players[message.playerId]||{}).name||'SPELARE',message.pose);return;}
   if(message.type==='celebration'){showWordCelebration(message.playerName,message.word);return;}
-  if(message.type==='cube-sync'){applyCubeSnapshot(message.cubes||[]);return;}
+  if(message.type==='cube-sync'){
+    if(Number(message.seq||0)<=multiplayer.cubeSeq)return;
+    multiplayer.cubeSeq=Number(message.seq||0);
+    applyCubeSnapshot(message.cubes||[],false);
+    return;
+  }
   if(message.type==='physics-host'){multiplayer.physicsHostId=message.playerId||'';return;}
   if(message.type==='claim-granted'){localGainCube(message.cubeId,message.hand);return;}
   if(message.type==='claim-denied'){sfx('wrong');return;}
   if(message.type==='cube-owner'){
     multiplayer.cubeOwners[message.cubeId]=message.ownerId||'';
     const cube=cubeById(message.cubeId);
-    if(cube&&message.ownerId&&message.ownerId!==multiplayer.playerId){
+    const placedSlot=state.slots.find(s=>s.dataset.filled==='true'&&s.dataset.cube===message.cubeId);
+    if(cube&&message.ownerId&&message.ownerId!==multiplayer.playerId&&!placedSlot){
       if(state.held===cube)localLoseHeldCube(message.cubeId);
       cube.object3D.visible=false;cube.dataset.used='remote-held';
     }else if(cube&&!message.ownerId&&cube!==state.held){
@@ -426,9 +433,7 @@ function handleServerMessage(message){
   if(message.type==='freeze'){
     showIceBlock(message.targetId,10000);
     if(message.targetId===multiplayer.playerId){
-      multiplayer.frozenUntil=performance.now()+10000;
-      if(state.held)releaseCube(true);
-      state.jetpack=false;stopJetSound();
+      beginLocalFreeze(10000);
     }
     return;
   }
@@ -446,33 +451,75 @@ function applyAuthoritativeState(remoteState){
   if(!remoteState||!state)return;
   multiplayer.applying=true;
   try{
+    const incomingFilled=new Map();
+    for(const item of (remoteState.slots||[])){
+      if(item?.filled&&String(item.wordkey||'').startsWith('0-')&&item.cube){
+        incomingFilled.set(item.cube,item);
+      }
+    }
+
+    // Släpp endast tidigare lokala placeringar som inte längre finns på servern.
     state.slots.forEach(slot=>{
       if(slot.dataset.filled==='true'){
-        const cube=cubeById(slot.dataset.cube);
-        if(cube&&cube!==state.held){game.object3D.attach(cube.object3D);cube.object3D.scale.set(1,1,1);setCubeState(cube,'loose');syncTransform(cube);}
+        const cubeId=slot.dataset.cube||'';
+        if(!incomingFilled.has(cubeId)){
+          const cube=cubeById(cubeId);
+          if(cube&&cube!==state.held){
+            game.object3D.attach(cube.object3D);
+            cube.object3D.scale.set(1,1,1);
+            cube.object3D.visible=true;
+            setCubeState(cube,'loose');
+            syncTransform(cube);
+          }
+        }
       }
-      slot.dataset.filled='false';slot.dataset.locked='false';delete slot.dataset.cube;delete slot.dataset.removableAt;setSlotVisual(slot,'incomplete');
+      slot.dataset.filled='false';
+      slot.dataset.locked='false';
+      delete slot.dataset.cube;
+      delete slot.dataset.removableAt;
+      setSlotVisual(slot,'incomplete');
     });
-    (remoteState.slots||[]).forEach(item=>{
-      if(!item.filled||!String(item.wordkey||'').startsWith('0-'))return;
+
+    for(const item of (remoteState.slots||[])){
+      if(!item?.filled||!String(item.wordkey||'').startsWith('0-'))continue;
       const slot=state.slots.find(s=>s.dataset.wordkey===item.wordkey&&Number(s.dataset.index)===Number(item.index));
       const cube=cubeById(item.cube);
-      if(!slot||!cube||cube===state.held)return;
-      slot.dataset.filled='true';slot.dataset.locked=item.locked?'true':'false';slot.dataset.cube=item.cube;
+      if(!slot||!cube)continue;
+
+      // Serverplacering är auktoritativ: även en lokalt buren/stulen kopia måste ge vika.
+      if(state.held===cube){
+        state.held=null;state.heldBy=null;
+      }
+      game.object3D.attach(cube.object3D);
+      cube.object3D.visible=true;
+      cube.dataset.owner='';
+      multiplayer.cubeOwners[item.cube]='';
+      multiplayer.cubeTargets.delete(item.cube);
+
+      slot.dataset.filled='true';
+      slot.dataset.locked=item.locked?'true':'false';
+      slot.dataset.cube=item.cube;
       slot.dataset.removableAt=item.locked?'0':String(Date.now()+500);
-      setCubeState(cube,'placed');game.object3D.attach(cube.object3D);
+
+      setCubeState(cube,'placed');
       const wp=worldPos(slot),lp=game.object3D.worldToLocal(wp.clone());
       const sq=slot.object3D.getWorldQuaternion(new THREE.Quaternion());
       const pq=game.object3D.getWorldQuaternion(new THREE.Quaternion());
-      cube.object3D.position.copy(lp);cube.object3D.quaternion.copy(pq.invert().multiply(sq));cube.object3D.scale.set(.88,.88,.55);syncTransform(cube);
-    });
+      cube.object3D.position.copy(lp);
+      cube.object3D.quaternion.copy(pq.invert().multiply(sq));
+      cube.object3D.scale.set(.88,.88,.55);
+      syncTransform(cube);
+    }
+
     state.complete=new Set(remoteState.complete||[]);
     state.slots.forEach(slot=>{
       if(slot.dataset.filled!=='true')setSlotVisual(slot,'incomplete');
       else setSlotVisual(slot,slot.dataset.locked==='true'?'correct':'wrong');
     });
     updateStatus();
-  }finally{multiplayer.applying=false;}
+  }finally{
+    multiplayer.applying=false;
+  }
 }
 
 
@@ -653,6 +700,8 @@ AFRAME.registerComponent('multiplayer-motion',{
   tick(time,dt){
     // A-Frame tick fortsätter även när immersive WebXR pausar window.requestAnimationFrame.
     smoothRemoteAvatarsFrame(dt||16);
+    smoothNetworkCubes(dt||16);
+    updateFreezeLock();
     if(!multiplayer.connected||!state)return;
     this.poseAccumulator+=(dt||16);
     this.heartbeatAccumulator+=(dt||16);this.cubeAccumulator+=(dt||16);    if(multiplayer.physicsHostId===multiplayer.playerId&&this.cubeAccumulator>=200){
@@ -1189,13 +1238,32 @@ function cubeWorldSnapshot(){
     return {id:c.dataset.id,p:[p.x,p.y,p.z],q:[q.x,q.y,q.z,q.w]};
   });
 }
-function applyCubeSnapshot(items){
+function applyCubeSnapshot(items,instant=false){
   if(!state||!Array.isArray(items))return;
+  const now=performance.now();
   for(const item of items){
     const cube=cubeById(item.id);
     if(!cube||cube===state.held||cube.dataset.used!=='loose')continue;
-    if(Array.isArray(item.p))cube.object3D.position.fromArray(item.p);
-    if(Array.isArray(item.q))cube.object3D.quaternion.fromArray(item.q);
+    if(!Array.isArray(item.p)||!Array.isArray(item.q))continue;
+    const p=new THREE.Vector3().fromArray(item.p);
+    const q=new THREE.Quaternion().fromArray(item.q);
+    multiplayer.cubeTargets.set(item.id,{p,q,receivedAt:now});
+    if(instant){
+      cube.object3D.position.copy(p);
+      cube.object3D.quaternion.copy(q);
+    }
+  }
+}
+function smoothNetworkCubes(dtMs=16){
+  if(!state||multiplayer.physicsHostId===multiplayer.playerId)return;
+  const dt=Math.min(50,Math.max(1,dtMs||16));
+  const posAlpha=1-Math.exp(-dt/115);
+  const rotAlpha=1-Math.exp(-dt/95);
+  for(const [id,target] of multiplayer.cubeTargets){
+    const cube=cubeById(id);
+    if(!cube||cube===state.held||cube.dataset.used!=='loose')continue;
+    cube.object3D.position.lerp(target.p,posAlpha);
+    cube.object3D.quaternion.slerp(target.q,rotAlpha);
   }
 }
 function requestCubeClaim(cube,hand){
@@ -1258,6 +1326,84 @@ function showFreezeBeam(start,end){
   game.appendChild(beam);beam.object3D.position.copy(mid);
   beam.object3D.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());
   setTimeout(()=>beam.remove(),220);
+}
+
+function makeFreezeTimerTexture(seconds){
+  const c=document.createElement('canvas');c.width=768;c.height=768;
+  const x=c.getContext('2d',{alpha:true});x.clearRect(0,0,c.width,c.height);
+  const g=x.createRadialGradient(384,384,60,384,384,360);
+  g.addColorStop(0,'rgba(16,45,80,.96)');g.addColorStop(1,'rgba(40,190,255,.22)');
+  x.fillStyle=g;x.beginPath();x.arc(384,384,350,0,Math.PI*2);x.fill();
+  x.strokeStyle='#d9fbff';x.lineWidth=18;x.stroke();
+  x.textAlign='center';x.textBaseline='middle';
+  x.shadowColor='#60e7ff';x.shadowBlur=35;
+  x.fillStyle='#ffffff';x.font='900 360px "Trebuchet MS",Arial,sans-serif';
+  x.fillText(String(seconds),384,390);
+  const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+  t.minFilter=THREE.LinearFilter;t.magFilter=THREE.LinearFilter;t.needsUpdate=true;
+  return t;
+}
+function startFreezeTimer(durationMs=10000){
+  stopFreezeTimer();
+  const camera=document.getElementById('camera');
+  if(!camera)return;
+  const root=document.createElement('a-entity');
+  root.setAttribute('position','0 .15 -2.35');
+  const mesh=new THREE.Mesh(
+    new THREE.PlaneGeometry(1.5,1.5),
+    new THREE.MeshBasicMaterial({transparent:true,depthTest:false,depthWrite:false,side:THREE.DoubleSide,toneMapped:false})
+  );
+  mesh.renderOrder=10050;root.setObject3D('mesh',mesh);camera.appendChild(root);
+  multiplayer.freezeTimer={root,mesh,lastSecond:null};
+  updateFreezeTimer();
+}
+function updateFreezeTimer(){
+  const timer=multiplayer.freezeTimer;
+  if(!timer)return;
+  const remaining=Math.max(0,multiplayer.frozenUntil-performance.now());
+  const second=Math.ceil(remaining/1000);
+  if(second!==timer.lastSecond){
+    timer.lastSecond=second;
+    if(timer.mesh.material.map)timer.mesh.material.map.dispose();
+    timer.mesh.material.map=makeFreezeTimerTexture(second);
+    timer.mesh.material.needsUpdate=true;
+  }
+  if(remaining<=0)stopFreezeTimer();
+}
+function stopFreezeTimer(){
+  const timer=multiplayer.freezeTimer;
+  if(!timer)return;
+  if(timer.mesh?.material?.map)timer.mesh.material.map.dispose();
+  if(timer.mesh?.material)timer.mesh.material.dispose();
+  if(timer.mesh?.geometry)timer.mesh.geometry.dispose();
+  timer.root?.removeObject3D('mesh');timer.root?.remove();
+  multiplayer.freezeTimer=null;
+}
+function beginLocalFreeze(durationMs=10000){
+  const rig=document.getElementById('rig');
+  multiplayer.frozenUntil=performance.now()+durationMs;
+  multiplayer.freezeLock={
+    position:rig.object3D.position.clone(),
+    quaternion:rig.object3D.quaternion.clone()
+  };
+  if(state){
+    state.jetpack=false;state.verticalVelocity=0;
+    if(state.held)releaseCube(true);
+  }
+  stopJetSound();
+  startFreezeTimer(durationMs);
+}
+function updateFreezeLock(){
+  updateFreezeTimer();
+  if(performance.now()>=multiplayer.frozenUntil){
+    multiplayer.freezeLock=null;
+    return;
+  }
+  const rig=document.getElementById('rig');
+  if(multiplayer.freezeLock&&rig){
+    rig.object3D.position.copy(multiplayer.freezeLock.position);
+    rig.object3D.quaternion.copy(multiplayer.freezeLock.quaternion);
+  }
 }
 function showIceBlock(targetId,durationMs=10000){
   const local=targetId===multiplayer.playerId;
@@ -1499,7 +1645,7 @@ AFRAME.registerComponent('grabber',{
         const hit=rc?rc.getIntersection(state.restartButton):null;
         if(hit){reset();return}
       }
-      if(!state||state.paused)return;
+      if(!state||state.paused||performance.now()<multiplayer.frozenUntil)return;
       if(state.held){releaseCube(false);return}
       const filledSlot=nearbyFilledSlot(this.el);
       if(filledSlot){pickupPlacedCube(filledSlot,this.el);return}
@@ -1661,6 +1807,7 @@ AFRAME.registerComponent('xr-button-poller',{
   },
   tick(){
     if(!scene.is('vr-mode')||!state||state.paused)return;
+    if(performance.now()<multiplayer.frozenUntil){state.jetpack=false;stopJetSound();return;}
     const session=scene.renderer.xr.getSession();
     if(!session)return;
 
@@ -1712,6 +1859,12 @@ AFRAME.registerComponent('locomotion',{
  },
  tick(time,dt){
    if(!scene.is('vr-mode'))return;
+   if(performance.now()<multiplayer.frozenUntil){
+     this.burst.set(0,0,0);
+     state.jetpack=false;state.verticalVelocity=0;
+     updateFreezeLock();
+     return;
+   }
    const session=scene.renderer.xr.getSession();if(!session)return;
    const sec=Math.max(.001,(dt||16)/1000),rig=this.el.object3D;
    const camera=document.getElementById('camera').object3D;

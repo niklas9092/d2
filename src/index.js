@@ -26,7 +26,7 @@ export class GameRoom extends DurableObject{
     }
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping","pong"));
   }
-  emptyGame(theme="mystery"){return{theme:cleanTheme(theme),slots:[],complete:[],scores:{},cubes:[],cubeOwners:{},lastActivity:Date.now()};}
+  emptyGame(theme="mystery"){return{theme:cleanTheme(theme),slots:[],complete:[],scores:{},cubes:[],cubeOwners:{},cubeSeq:0,lastActivity:Date.now()};}
   async touch(game,force=false){
     const now=Date.now();game.lastActivity=now;
     if(force||now-this.lastTouchWrite>60000){
@@ -74,7 +74,7 @@ export class GameRoom extends DurableObject{
     }
     server.send(JSON.stringify({type:"welcome",playerId,players:this.playerObject(),scores:game.scores,
       theme:game.theme,state:{slots:game.slots,complete:game.complete},poses,cubes:game.cubes,
-      cubeOwners:game.cubeOwners,physicsHostId:this.hostId()}));
+      cubeOwners:game.cubeOwners,physicsHostId:this.hostId(),cubeSeq:Number(game.cubeSeq)||0}));
     await this.broadcastPresence(game);
     await this.broadcast({type:"physics-host",playerId:this.hostId()});
     return new Response(null,{status:101,webSocket:client});
@@ -90,8 +90,11 @@ export class GameRoom extends DurableObject{
       await this.broadcastExcept(ws,{type:"pose",playerId,playerName:name,pose:data.pose});return;
     }
     if(data.type==="cube-sync"&&playerId===this.hostId()&&Array.isArray(data.cubes)){
-      game.cubes=data.cubes.slice(0,260);await this.touch(game,false);
-      await this.broadcastExcept(ws,{type:"cube-sync",cubes:game.cubes});return;
+      game.cubeSeq=(Number(game.cubeSeq)||0)+1;
+      game.cubes=data.cubes.slice(0,260);
+      await this.touch(game,false);
+      await this.broadcastExcept(ws,{type:"cube-sync",seq:game.cubeSeq,cubes:game.cubes});
+      return;
     }
     if(data.type==="claim-cube"){
       const cubeId=String(data.cubeId||"").slice(0,20),now=Date.now(),current=game.cubeOwners[cubeId];

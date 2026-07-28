@@ -1,16 +1,20 @@
-# Ordbyggaren Multiplayer v41
+# Ordbyggaren Multiplayer v42
 
-## Fixad bokstavsplacering
-I v40 skickades ett `release-cube` redan innan klienten visste om bokstaven
-skulle placeras i en ruta. Ett försenat ägarmeddelande kunde därför komma efter
-den gröna placeringen och göra kuben lös igen.
+## Frysning
+- Träffad spelare låses till exakt rig-position och rotation i tio sekunder.
+- Stickrörelse, armsving, jetpack, trigger och A-knapp blockeras.
+- Hastighet och jetpack nollställs.
+- En stor kamerafäst timer visar 10, 9, 8 ... 1, 0.
+- Isblocket visas samtidigt för alla.
 
-I v41:
-- ägarskapet släpps inte före placeringskontrollen
-- en bokstav som placeras i en ruta förblir `placed`
-- ägaruppdateringar får aldrig göra en placerad kub lös
-- servern rensar bärarägarskap för både rätt och fel placerade kuber
-- rätt grön bokstav låses omedelbart och stannar kvar
-- fel röd bokstav sitter fast i exakt 500 ms innan den kan tas bort
+## Mjuk gemensam kubfysik
+- Kubpositioner teleporteras inte längre vid varje nätpaket.
+- Klienter interpolerar position och rotation mjukt mot servermålen.
+- Paket har löpnummer så äldre paket ignoreras.
+- Endast fysikvärden simulerar lösa kuber.
 
-Övrig kubsynk, stöldmekanik, frysstråle och multiplayer är oförändrade.
+## Rätt bokstav i multiplayer
+- Serverns placeringsstatus är alltid auktoritativ.
+- En lokalt buren eller gömd kub tvingas fram och placeras om servern säger att den sitter i en ruta.
+- Placerade kuber kan inte döljas av ett försenat ägarmeddelande.
+- Rätt bokstav blir synlig, grön och fast hos alla spelare.
