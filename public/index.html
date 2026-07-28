@@ -32,7 +32,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Mystikbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V34</div>
+    <div id="versionBadge">VERSION V35</div>
     <div id="joinInfo">
       Bygg 20 engelska ord tillsammans i ett tema av ljus, mörker och mystik.
       Varje korrekt bokstav sparas direkt och ger 1 poäng. Ett färdigt ord ger ytterligare 10 poäng.
@@ -40,7 +40,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
     </div>
     <input id="playerName" maxlength="12" value="" placeholder="DITT SPELARNAMN" autocomplete="off">
     <input id="roomCode" maxlength="12" value="" placeholder="RUMSKOD" autocomplete="off">
-    <button id="joinButton">ANSLUT TILL RUM • V34</button>
+    <button id="joinButton">ANSLUT TILL RUM • V35</button>
     <div id="joinError"></div>
   </div>
 </div>
@@ -49,7 +49,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V34</button>
+  <button id="enterVr">STARTA VR • V35</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. Använd endast TRIGGER för att ta och släppa kuber.</div>
@@ -137,7 +137,7 @@ const multiplayer={
 
 
 
-const GAME_VERSION='v34';
+const GAME_VERSION='v35';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,12)||fallback);
@@ -245,36 +245,56 @@ function playNextCelebration(){
   banner.setAttribute('height','1.16');
   banner.setAttribute('position','5.8 .35 -3.4');
   banner.setAttribute('material','shader:flat;transparent:true;depthTest:false;side:double');
+  banner.setAttribute('celebration-banner','duration:5200');
+  banner.dataset.playerName=item.playerName;
+  banner.dataset.word=item.word;
   camera.appendChild(banner);
-  applyTexture(banner,makeCelebrationTexture(item.playerName,item.word));
 
-  const start=performance.now(),duration=5200;
-  function animate(now){
-    if(!banner.isConnected){celebrationPlaying=false;playNextCelebration();return;}
-    const t=Math.min(1,(now-start)/duration);
-    // Snabbt in, lugnt framför spelaren, sedan ut åt vänster.
+  const texture=makeCelebrationTexture(item.playerName,item.word);
+  const apply=()=>{
+    const mesh=banner.getObject3D('mesh');
+    if(mesh&&mesh.material){
+      mesh.material.map=texture;
+      mesh.material.transparent=true;
+      mesh.material.depthTest=false;
+      mesh.material.needsUpdate=true;
+    }
+  };
+  apply();
+  banner.addEventListener('object3dset',apply,{once:true});
+}
+
+AFRAME.registerComponent('celebration-banner',{
+  schema:{duration:{default:5200}},
+  init(){
+    this.started=performance.now();
+  },
+  tick(){
+    const elapsed=performance.now()-this.started;
+    const t=Math.min(1,elapsed/this.data.duration);
     let x;
     if(t<.24){
-      const u=t/.24;x=5.8+(0.0-5.8)*(1-Math.pow(1-u,3));
+      const u=t/.24;
+      x=5.8+(0-5.8)*(1-Math.pow(1-u,3));
     }else if(t<.72){
       x=0;
     }else{
-      const u=(t-.72)/.28;x=0+(-6.2)*(u*u);
+      const u=(t-.72)/.28;
+      x=-6.2*(u*u);
     }
-    banner.object3D.position.x=x;
+    this.el.object3D.position.x=x;
     const scale=t<.12?.86+.14*(t/.12):1;
-    banner.object3D.scale.set(scale,scale,scale);
-    if(t<1)requestAnimationFrame(animate);
-    else{
-      const mesh=banner.getObject3D('mesh');
+    this.el.object3D.scale.set(scale,scale,scale);
+
+    if(t>=1){
+      const mesh=this.el.getObject3D('mesh');
       if(mesh?.material?.map)mesh.material.map.dispose();
-      banner.remove();
+      this.el.remove();
       celebrationPlaying=false;
       setTimeout(playNextCelebration,180);
     }
   }
-  requestAnimationFrame(animate);
-}
+});
 
 function handleServerMessage(message){
   if(message.type==='join-error'){

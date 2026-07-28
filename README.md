@@ -1,19 +1,14 @@
-# Mystikbyggaren Multiplayer v34
+# Mystikbyggaren Multiplayer v35
 
-Försiktig uppdatering ovanpå den stabila v33.
+Liten korrigering av v34.
 
-## Nytt
-- 20 ord inom godhet, ondska och mystik.
-- När ett ord blir klart skickar servern en gemensam celebration-händelse.
-- Alla spelare ser en stor VR-text: “SPELARE KLARADE ETT ORD — WORD”.
-- Texten glider in, stannar tydligt framför spelaren och fortsätter sedan ut.
-- Svenska skyltar har renare typografi, bättre kontrast och större marginaler.
-- Väggtexterna har tagits bort; endast infotavlan återstår.
-- Startskärmen är förenklad och visar bara version, kort information, spelarnamn och rumskod.
-- Rumlista och raderingsgränssnitt är borttagna från startskärmen.
+## Fix
+Celebration-texten använde webbläsarens vanliga `requestAnimationFrame`.
+Den kan pausas när ett headset går in i immersive WebXR, så bannern skapades
+men dess rörelse startade inte.
 
-## Oförändrat
-- Stabil multiplayer-synk från v33.
-- En ny spelare återställer inte spelet.
-- Rätt bokstav sparas direkt och ger 1 poäng.
-- Färdigt ord ger ytterligare 10 poäng.
+I v35 körs bannerns animation i en A-Frame-komponent (`celebration-banner`)
+som uppdateras i WebXR-renderloopen. Därför visas och rör sig texten både på
+dator och inne i VR-headset.
+
+Övrig multiplayerkod från v33/v34 är oförändrad.
