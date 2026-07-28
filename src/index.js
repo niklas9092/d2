@@ -26,14 +26,18 @@ export class GameRoom extends DurableObject{
     }
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping","pong"));
   }
-  emptyGame(theme="mystery"){return{theme:cleanTheme(theme),slots:[],complete:[],scores:{},cubes:[],cubeOwners:{},cubeSeq:0,lastActivity:Date.now()};}
+  emptyGame(theme="mystery"){return{theme:cleanTheme(theme),slots:[],complete:[],scores:{},cubes:[],cubeOwners:{},cubeSeq:0,physicsHostId:"",freezeCooldowns:{},lastActivity:Date.now()};}
   async touch(game,force=false){
     const now=Date.now();game.lastActivity=now;
     if(force||now-this.lastTouchWrite>60000){
       this.lastTouchWrite=now;await this.ctx.storage.put("game",game);await this.ctx.storage.setAlarm(now+FOUR_HOURS);
     }
   }
-  hostId(){const ws=this.ctx.getWebSockets()[0];return(ws?.deserializeAttachment()||{}).playerId||"";}
+  activePlayerIds(){return this.ctx.getWebSockets().map(ws=>(ws.deserializeAttachment()||{}).playerId).filter(Boolean);}
+  chooseHost(excludeId=""){
+    for(const id of this.activePlayerIds())if(id!==excludeId)return id;
+    return "";
+  }
   async alarm(){
     const game=(await this.ctx.storage.get("game"))||this.emptyGame(),now=Date.now(),last=Number(game.lastActivity)||0;
     if(now-last>=FOUR_HOURS){
@@ -61,11 +65,17 @@ export class GameRoom extends DurableObject{
     if(!game.lastActivity||Date.now()-Number(game.lastActivity)>=FOUR_HOURS)game=this.emptyGame(selectedTheme);
     game.theme=cleanTheme(game.theme||selectedTheme);game.slots=Array.isArray(game.slots)?game.slots:[];
     game.complete=Array.isArray(game.complete)?game.complete:[];game.scores=game.scores||{};
-    game.cubes=Array.isArray(game.cubes)?game.cubes:[];game.cubeOwners=game.cubeOwners||{};
+    game.cubes=Array.isArray(game.cubes)?game.cubes:[];
+    game.cubeOwners=game.cubeOwners||{};
+    game.freezeCooldowns=game.freezeCooldowns||{};
+    const activeIds=this.activePlayerIds();
+    if(!game.physicsHostId||!activeIds.includes(game.physicsHostId))game.physicsHostId=this.chooseHost();
 
     const playerId=clientKey,pair=new WebSocketPair(),[client,server]=Object.values(pair);
     server.serializeAttachment({playerId,name,clientKey,room});this.ctx.acceptWebSocket(server);
-    this.players.set(playerId,{name,clientKey});game.scores[playerId]||={name,score:0};game.scores[playerId].name=name;
+    this.players.set(playerId,{name,clientKey});
+    game.scores[playerId]||={name,score:0};game.scores[playerId].name=name;
+    if(!game.physicsHostId)game.physicsHostId=playerId;
     await this.touch(game,true);
 
     const poses={};for(const existing of this.ctx.getWebSockets()){
@@ -74,9 +84,9 @@ export class GameRoom extends DurableObject{
     }
     server.send(JSON.stringify({type:"welcome",playerId,players:this.playerObject(),scores:game.scores,
       theme:game.theme,state:{slots:game.slots,complete:game.complete},poses,cubes:game.cubes,
-      cubeOwners:game.cubeOwners,physicsHostId:this.hostId(),cubeSeq:Number(game.cubeSeq)||0}));
+      cubeOwners:game.cubeOwners,physicsHostId:game.physicsHostId,cubeSeq:Number(game.cubeSeq)||0}));
     await this.broadcastPresence(game);
-    await this.broadcast({type:"physics-host",playerId:this.hostId()});
+    await this.broadcast({type:"physics-host",playerId:game.physicsHostId});
     return new Response(null,{status:101,webSocket:client});
   }
   async webSocketMessage(ws,message){
@@ -89,7 +99,7 @@ export class GameRoom extends DurableObject{
       ws.serializeAttachment({...a,latestPose:data.pose});await this.touch(game,false);
       await this.broadcastExcept(ws,{type:"pose",playerId,playerName:name,pose:data.pose});return;
     }
-    if(data.type==="cube-sync"&&playerId===this.hostId()&&Array.isArray(data.cubes)){
+    if(data.type==="cube-sync"&&playerId===game.physicsHostId&&Array.isArray(data.cubes)){
       game.cubeSeq=(Number(game.cubeSeq)||0)+1;
       game.cubes=data.cubes.slice(0,260);
       await this.touch(game,false);
@@ -114,9 +124,31 @@ export class GameRoom extends DurableObject{
       if(current?.ownerId===playerId){delete game.cubeOwners[cubeId];await this.touch(game,true);await this.broadcast({type:"cube-owner",cubeId,ownerId:""});}
       return;
     }
-    if(data.type==="freeze"){
+    if(data.type==="freeze-attempt"){
+      const now=Date.now();
+      const readyAt=Number(game.freezeCooldowns[playerId]||0);
+      if(now<readyAt){
+        await this.sendTo(playerId,{type:"freeze-denied",remaining:readyAt-now});
+        return;
+      }
+
+      game.freezeCooldowns[playerId]=now+60000;
       const targetId=String(data.targetId||"");
-      if(targetId&&targetId!==playerId&&this.players.has(targetId))await this.broadcast({type:"freeze",targetId,by:playerId,duration:10000});
+      await this.touch(game,true);
+      await this.sendTo(playerId,{type:"freeze-ready",readyAt:now+60000});
+
+      if(targetId&&targetId!==playerId&&this.players.has(targetId)){
+        // Om fysikvärden fryses flyttas värdskapet omedelbart till en annan spelare.
+        if(game.physicsHostId===targetId){
+          const replacement=this.chooseHost(targetId);
+          if(replacement){
+            game.physicsHostId=replacement;
+            await this.touch(game,true);
+            await this.broadcast({type:"physics-host",playerId:replacement});
+          }
+        }
+        await this.broadcast({type:"freeze",targetId,by:playerId,duration:10000});
+      }
       return;
     }
     if(data.type==="state"&&data.state){
@@ -157,7 +189,12 @@ export class GameRoom extends DurableObject{
     const a=ws.deserializeAttachment()||{};if(a.playerId)this.players.delete(a.playerId);
     const game=(await this.ctx.storage.get("game"))||this.emptyGame();
     for(const[cubeId,owner]of Object.entries(game.cubeOwners||{}))if(owner.ownerId===a.playerId)delete game.cubeOwners[cubeId];
-    await this.touch(game,true);await this.broadcastPresence(game);await this.broadcast({type:"physics-host",playerId:this.hostId()});
+    if(game.physicsHostId===a.playerId||!this.activePlayerIds().includes(game.physicsHostId)){
+      game.physicsHostId=this.chooseHost(a.playerId);
+    }
+    await this.touch(game,true);
+    await this.broadcastPresence(game);
+    await this.broadcast({type:"physics-host",playerId:game.physicsHostId});
   }
   async webSocketError(ws){await this.webSocketClose(ws);}
   cleanName(v){return String(v||"").toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,"").slice(0,12);}

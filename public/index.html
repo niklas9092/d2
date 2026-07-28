@@ -34,7 +34,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Ordbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V42</div>
+    <div id="versionBadge">VERSION V43</div>
     <div id="joinInfo">
       Skriv ditt namn och ett gemensamt rumsnamn. Ett rum sparar tema, ord, poäng och ritningar.
       Efter fyra timmar helt utan aktivitet nollställs rummet automatiskt.
@@ -53,7 +53,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
       <option value="body">Kroppen</option>
       <option value="city">Resor & staden</option>
     </select>
-    <button id="joinButton">GÅ IN I RUMMET • V42</button>
+    <button id="joinButton">GÅ IN I RUMMET • V43</button>
     <div id="joinError"></div>
   </div>
 </div>
@@ -62,7 +62,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V42</button>
+  <button id="enterVr">STARTA VR • V43</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. TRIGGER tar, släpper och kan stjäla bokstäver efter 3 sekunder. A skjuter frysstråle.</div>
@@ -141,12 +141,12 @@ let audioCtx=null;
 const multiplayer={
   clientKey:sessionStorage.getItem('djurClientKey')||crypto.randomUUID(),
   socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
-  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',physicsHostId:'',cubeOwners:{},frozenUntil:0,lastCubeSync:0,cubeTargets:new Map(),cubeSeq:0,freezeLock:null,freezeTimer:null
+  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',physicsHostId:'',cubeOwners:{},frozenUntil:0,lastCubeSync:0,cubeTargets:new Map(),cubeSeq:0,freezeLock:null,freezeTimer:null,freezeReadyAt:0
 };
 
 
 
-const GAME_VERSION='v42';
+const GAME_VERSION='v43';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,'').slice(0,16)||fallback);
@@ -430,7 +430,18 @@ function handleServerMessage(message){
     }
     return;
   }
+  if(message.type==='freeze-denied'){
+    multiplayer.freezeReadyAt=performance.now()+Math.max(0,Number(message.remaining)||0);
+    freezeCooldownSound();
+    document.getElementById('tip').textContent=`FRYSSTRÅLEN LADDAR • ${Math.ceil((Number(message.remaining)||0)/1000)} SEKUNDER KVAR`;
+    return;
+  }
+  if(message.type==='freeze-ready'){
+    multiplayer.freezeReadyAt=performance.now()+60000;
+    return;
+  }
   if(message.type==='freeze'){
+    freezeHitSound();
     showIceBlock(message.targetId,10000);
     if(message.targetId===multiplayer.playerId){
       beginLocalFreeze(10000);
@@ -735,6 +746,68 @@ function tone(freq=440,dur=.09,type='sine',gain=.04,delay=0){
   g.gain.exponentialRampToValueAtTime(.0001,a.currentTime+delay+dur);
   o.connect(g).connect(a.destination);o.start(a.currentTime+delay);o.stop(a.currentTime+delay+dur+.03);
 }
+
+function freezeBeamSound(){
+  const a=audio(),now=a.currentTime;
+  const master=a.createGain();
+  master.gain.setValueAtTime(.0001,now);
+  master.gain.exponentialRampToValueAtTime(.11,now+.018);
+  master.gain.exponentialRampToValueAtTime(.0001,now+.48);
+  master.connect(a.destination);
+
+  const o1=a.createOscillator(),o2=a.createOscillator();
+  o1.type='sawtooth';o2.type='sine';
+  o1.frequency.setValueAtTime(180,now);
+  o1.frequency.exponentialRampToValueAtTime(1150,now+.34);
+  o2.frequency.setValueAtTime(420,now);
+  o2.frequency.exponentialRampToValueAtTime(1900,now+.34);
+  o1.detune.value=-8;o2.detune.value=7;
+  o1.connect(master);o2.connect(master);
+  o1.start(now);o2.start(now);
+  o1.stop(now+.5);o2.stop(now+.5);
+
+  const buffer=a.createBuffer(1,Math.floor(a.sampleRate*.24),a.sampleRate);
+  const data=buffer.getChannelData(0);
+  for(let i=0;i<data.length;i++)data[i]=(Math.random()*2-1)*(1-i/data.length);
+  const noise=a.createBufferSource(),filter=a.createBiquadFilter(),ng=a.createGain();
+  noise.buffer=buffer;filter.type='bandpass';filter.frequency.value=1600;filter.Q.value=2.2;
+  ng.gain.setValueAtTime(.08,now);ng.gain.exponentialRampToValueAtTime(.0001,now+.22);
+  noise.connect(filter).connect(ng).connect(a.destination);noise.start(now);
+}
+
+function freezeHitSound(){
+  tone(920,.18,'sine',.07,0);
+  tone(620,.28,'triangle',.065,.03);
+  tone(310,.42,'sine',.05,.07);
+  const a=audio(),now=a.currentTime;
+  const buffer=a.createBuffer(1,Math.floor(a.sampleRate*.34),a.sampleRate);
+  const data=buffer.getChannelData(0);
+  for(let i=0;i<data.length;i++){
+    const decay=Math.pow(1-i/data.length,2.2);
+    data[i]=(Math.random()*2-1)*decay;
+  }
+  const src=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain();
+  src.buffer=buffer;f.type='highpass';f.frequency.value=2200;
+  g.gain.setValueAtTime(.12,now);g.gain.exponentialRampToValueAtTime(.0001,now+.33);
+  src.connect(f).connect(g).connect(a.destination);src.start(now);
+}
+
+function freezeTickSound(second){
+  if(second<=0){
+    tone(1260,.18,'sine',.08);
+    tone(1680,.22,'triangle',.055,.06);
+    return;
+  }
+  const urgent=second<=3;
+  tone(urgent?980:700,urgent?.13:.08,urgent?'square':'sine',urgent?.06:.035);
+  if(urgent)tone(490,.10,'triangle',.03,.045);
+}
+
+function freezeCooldownSound(){
+  tone(150,.10,'square',.028);
+  tone(110,.13,'sawtooth',.02,.04);
+}
+
 function sfx(kind){
   if(kind==='grab'){tone(330,.07,'triangle');tone(500,.08,'sine',.025,.035)}
   if(kind==='place'){tone(520,.08);tone(720,.12,'triangle',.04,.05)}
@@ -1299,7 +1372,15 @@ function localGainCube(cubeId,handName){
   attachCube(cube,hand,true);
 }
 function fireFreezeBeam(hand){
-  if(!multiplayer.connected||!hand||performance.now()<multiplayer.frozenUntil)return;
+  const now=performance.now();
+  if(!multiplayer.connected||!hand||now<multiplayer.frozenUntil)return;
+  if(now<multiplayer.freezeReadyAt){
+    const seconds=Math.ceil((multiplayer.freezeReadyAt-now)/1000);
+    document.getElementById('tip').textContent=`FRYSSTRÅLEN LADDAR • ${seconds} SEKUNDER KVAR`;
+    freezeCooldownSound();
+    return;
+  }
+
   const rayComp=hand.components?.raycaster;
   if(!rayComp?.raycaster)return;
   const ray=rayComp.raycaster.ray;
@@ -1314,9 +1395,13 @@ function fireFreezeBeam(hand){
     const closest=origin.clone().addScaledVector(dir,t);
     if(closest.distanceTo(target)<.75&&t<bestT){bestT=t;targetId=id;}
   }
+
+  multiplayer.freezeReadyAt=now+60000;
   const end=origin.clone().addScaledVector(dir,targetId?bestT:12);
   showFreezeBeam(origin,end);
-  if(targetId)sendMessage({type:'freeze',targetId});
+  freezeBeamSound();
+  document.getElementById('tip').textContent='FRYSSTRÅLEN AVFYRAD • LADDAR I 60 SEKUNDER';
+  sendMessage({type:'freeze-attempt',targetId});
 }
 function showFreezeBeam(start,end){
   const beam=document.createElement('a-cylinder');
@@ -1364,6 +1449,7 @@ function updateFreezeTimer(){
   const second=Math.ceil(remaining/1000);
   if(second!==timer.lastSecond){
     timer.lastSecond=second;
+    freezeTickSound(second);
     if(timer.mesh.material.map)timer.mesh.material.map.dispose();
     timer.mesh.material.map=makeFreezeTimerTexture(second);
     timer.mesh.material.needsUpdate=true;
@@ -1381,6 +1467,7 @@ function stopFreezeTimer(){
 }
 function beginLocalFreeze(durationMs=10000){
   const rig=document.getElementById('rig');
+  freezeHitSound();
   multiplayer.frozenUntil=performance.now()+durationMs;
   multiplayer.freezeLock={
     position:rig.object3D.position.clone(),

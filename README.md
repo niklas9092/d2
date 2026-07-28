@@ -1,20 +1,20 @@
-# Ordbyggaren Multiplayer v42
+# Ordbyggaren Multiplayer v43
 
-## Frysning
-- Träffad spelare låses till exakt rig-position och rotation i tio sekunder.
-- Stickrörelse, armsving, jetpack, trigger och A-knapp blockeras.
-- Hastighet och jetpack nollställs.
-- En stor kamerafäst timer visar 10, 9, 8 ... 1, 0.
-- Isblocket visas samtidigt för alla.
+## Frysstråle
+- Frysstrålen kan användas högst en gång var 60:e sekund per spelare.
+- Cooldown kontrolleras både lokalt och av servern.
+- Missad stråle förbrukar också laddningen.
+- Försök under cooldown visar återstående sekunder.
 
-## Mjuk gemensam kubfysik
-- Kubpositioner teleporteras inte längre vid varje nätpaket.
-- Klienter interpolerar position och rotation mjukt mot servermålen.
-- Paket har löpnummer så äldre paket ignoreras.
-- Endast fysikvärden simulerar lösa kuber.
+## Ljud
+- Strålen har stigande energiljud, isigt brus och avfyrningsslag.
+- Träff ger ett kraftigt iskristall-ljud.
+- Timern har ett tydligt tick varje sekund.
+- De sista tre sekunderna låter mer brådskande.
+- Upptining avslutas med en ljus tvåtons-signal.
 
-## Rätt bokstav i multiplayer
-- Serverns placeringsstatus är alltid auktoritativ.
-- En lokalt buren eller gömd kub tvingas fram och placeras om servern säger att den sitter i en ruta.
-- Placerade kuber kan inte döljas av ett försenat ägarmeddelande.
-- Rätt bokstav blir synlig, grön och fast hos alla spelare.
+## Kubarna stannar inte vid frysning
+- Fysikvärden sparas nu uttryckligen i rummets serverstatus.
+- Om fysikvärden träffas av frysstrålen flyttas värdskapet direkt till en annan aktiv spelare.
+- Kubfysiken är helt frikopplad från spelarens frysta rörelselås.
+- Vid frånkoppling väljs också en ny fysikvärd automatiskt.
