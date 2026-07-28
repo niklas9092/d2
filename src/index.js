@@ -138,15 +138,8 @@ export class GameRoom extends DurableObject{
       await this.sendTo(playerId,{type:"freeze-ready",readyAt:now+60000});
 
       if(targetId&&targetId!==playerId&&this.players.has(targetId)){
-        // Om fysikvärden fryses flyttas värdskapet omedelbart till en annan spelare.
-        if(game.physicsHostId===targetId){
-          const replacement=this.chooseHost(targetId);
-          if(replacement){
-            game.physicsHostId=replacement;
-            await this.touch(game,true);
-            await this.broadcast({type:"physics-host",playerId:replacement});
-          }
-        }
+        // Frysning påverkar endast spelarens rigg och kontroller.
+        // Fysikvärden fortsätter köra kubfysiken i sin separata loop.
         await this.broadcast({type:"freeze",targetId,by:playerId,duration:10000});
       }
       return;

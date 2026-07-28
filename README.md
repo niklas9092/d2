@@ -1,20 +1,11 @@
-# Ordbyggaren Multiplayer v43
+# Ordbyggaren Multiplayer v44
 
-## Frysstråle
-- Frysstrålen kan användas högst en gång var 60:e sekund per spelare.
-- Cooldown kontrolleras både lokalt och av servern.
-- Missad stråle förbrukar också laddningen.
-- Försök under cooldown visar återstående sekunder.
+Bokstavsfysikens WebXR-komponent hade fortfarande en rad som stoppade hela
+fysikloopen när den lokala spelaren var fryst. Den är nu borttagen.
 
-## Ljud
-- Strålen har stigande energiljud, isigt brus och avfyrningsslag.
-- Träff ger ett kraftigt iskristall-ljud.
-- Timern har ett tydligt tick varje sekund.
-- De sista tre sekunderna låter mer brådskande.
-- Upptining avslutas med en ljus tvåtons-signal.
-
-## Kubarna stannar inte vid frysning
-- Fysikvärden sparas nu uttryckligen i rummets serverstatus.
-- Om fysikvärden träffas av frysstrålen flyttas värdskapet direkt till en annan aktiv spelare.
-- Kubfysiken är helt frikopplad från spelarens frysta rörelselås.
-- Vid frånkoppling väljs också en ny fysikvärd automatiskt.
+- En fryst fysikvärd fortsätter simulera bokstäver.
+- Kubpaket fortsätter skickas var 200 ms.
+- Övriga spelare fortsätter interpolera rörelsen.
+- Servern byter inte fysikvärd bara för att spelaren fryses.
+- Värdbyte sker fortfarande om fysikvärden lämnar rummet.
+- Frysningen påverkar endast spelarens rigg, kontroller, jetpack och buren bokstav.

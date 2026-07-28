@@ -34,7 +34,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Ordbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V43</div>
+    <div id="versionBadge">VERSION V44</div>
     <div id="joinInfo">
       Skriv ditt namn och ett gemensamt rumsnamn. Ett rum sparar tema, ord, poäng och ritningar.
       Efter fyra timmar helt utan aktivitet nollställs rummet automatiskt.
@@ -53,7 +53,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
       <option value="body">Kroppen</option>
       <option value="city">Resor & staden</option>
     </select>
-    <button id="joinButton">GÅ IN I RUMMET • V43</button>
+    <button id="joinButton">GÅ IN I RUMMET • V44</button>
     <div id="joinError"></div>
   </div>
 </div>
@@ -62,7 +62,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V43</button>
+  <button id="enterVr">STARTA VR • V44</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. TRIGGER tar, släpper och kan stjäla bokstäver efter 3 sekunder. A skjuter frysstråle.</div>
@@ -141,12 +141,12 @@ let audioCtx=null;
 const multiplayer={
   clientKey:sessionStorage.getItem('djurClientKey')||crypto.randomUUID(),
   socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
-  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',physicsHostId:'',cubeOwners:{},frozenUntil:0,lastCubeSync:0,cubeTargets:new Map(),cubeSeq:0,freezeLock:null,freezeTimer:null,freezeReadyAt:0
+  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',physicsHostId:'',cubeOwners:{},frozenUntil:0,lastCubeSync:0,cubeTargets:new Map(),cubeSeq:0,freezeLock:null,freezeTimer:null,freezeReadyAt:0,lastCubePacketAt:0
 };
 
 
 
-const GAME_VERSION='v43';
+const GAME_VERSION='v44';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,'').slice(0,16)||fallback);
@@ -388,7 +388,7 @@ function handleServerMessage(message){
     removeMissingAvatars();
     renderMultiplayerStatus();
     if(message.state)applyAuthoritativeState(message.state);
-    if(message.cubes)applyCubeSnapshot(message.cubes,true);
+    if(message.cubes){multiplayer.lastCubePacketAt=performance.now();applyCubeSnapshot(message.cubes,true);}
     if(message.poses){
       for(const [id,pose] of Object.entries(message.poses)){
         const player=multiplayer.players[id]||{};
@@ -407,6 +407,7 @@ function handleServerMessage(message){
   if(message.type==='cube-sync'){
     if(Number(message.seq||0)<=multiplayer.cubeSeq)return;
     multiplayer.cubeSeq=Number(message.seq||0);
+    multiplayer.lastCubePacketAt=performance.now();
     applyCubeSnapshot(message.cubes||[],false);
     return;
   }
@@ -1845,10 +1846,9 @@ AFRAME.registerComponent('floating-cube-physics',{
     this.lastXRTime=0;
   },
   tick(time,dt){
-    // A-Frame tick is synchronized with renderer.setAnimationLoop and therefore
-    // continues running inside the headset when normal requestAnimationFrame stops.
+    // Kubfysiken är helt frikopplad från spelarens frysstatus.
+    // Även en fryst fysikvärd fortsätter simulera och synka bokstäverna.
     if(!scene.is('vr-mode')||!state||state.paused)return;
-    if(performance.now()<multiplayer.frozenUntil)return;
     const safeDt=Math.min(50,Math.max(1,dt||16));
     stepZeroGPhysics(time,safeDt);
     this.lastXRTime=time;
