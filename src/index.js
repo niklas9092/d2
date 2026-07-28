@@ -26,7 +26,7 @@ export class GameRoom extends DurableObject{
     }
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping","pong"));
   }
-  emptyGame(theme="mystery"){return{theme:cleanTheme(theme),slots:[],complete:[],scores:{},cubes:[],cubeOwners:{},cubeSeq:0,physicsHostId:"",freezeCooldowns:{},lastActivity:Date.now()};}
+  emptyGame(theme="mystery"){return{theme:cleanTheme(theme),slots:[],complete:[],scores:{},cubes:[],cubeOwners:{},cubeSeq:0,physicsHostId:"",lastCubeSyncAt:0,freezeCooldowns:{},lastActivity:Date.now()};}
   async touch(game,force=false){
     const now=Date.now();game.lastActivity=now;
     if(force||now-this.lastTouchWrite>60000){
@@ -87,6 +87,9 @@ export class GameRoom extends DurableObject{
       cubeOwners:game.cubeOwners,physicsHostId:game.physicsHostId,cubeSeq:Number(game.cubeSeq)||0}));
     await this.broadcastPresence(game);
     await this.broadcast({type:"physics-host",playerId:game.physicsHostId});
+    if(game.physicsHostId){
+      await this.sendTo(game.physicsHostId,{type:"request-cube-sync"});
+    }
     return new Response(null,{status:101,webSocket:client});
   }
   async webSocketMessage(ws,message){
@@ -101,9 +104,23 @@ export class GameRoom extends DurableObject{
     }
     if(data.type==="cube-sync"&&playerId===game.physicsHostId&&Array.isArray(data.cubes)){
       game.cubeSeq=(Number(game.cubeSeq)||0)+1;
+      game.lastCubeSyncAt=Date.now();
       game.cubes=data.cubes.slice(0,260);
       await this.touch(game,false);
       await this.broadcastExcept(ws,{type:"cube-sync",seq:game.cubeSeq,cubes:game.cubes});
+      return;
+    }
+    if(data.type==="host-timeout"){
+      const now=Date.now();
+      const stale=now-Number(game.lastCubeSyncAt||0)>1200;
+      const active=this.activePlayerIds();
+      if(stale&&active.includes(playerId)){
+        game.physicsHostId=playerId;
+        game.lastCubeSyncAt=now;
+        await this.touch(game,true);
+        await this.broadcast({type:"physics-host",playerId});
+        await this.sendTo(playerId,{type:"request-cube-sync"});
+      }
       return;
     }
     if(data.type==="claim-cube"){

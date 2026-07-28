@@ -34,7 +34,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Ordbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V44</div>
+    <div id="versionBadge">VERSION V45</div>
     <div id="joinInfo">
       Skriv ditt namn och ett gemensamt rumsnamn. Ett rum sparar tema, ord, poäng och ritningar.
       Efter fyra timmar helt utan aktivitet nollställs rummet automatiskt.
@@ -53,7 +53,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
       <option value="body">Kroppen</option>
       <option value="city">Resor & staden</option>
     </select>
-    <button id="joinButton">GÅ IN I RUMMET • V44</button>
+    <button id="joinButton">GÅ IN I RUMMET • V45</button>
     <div id="joinError"></div>
   </div>
 </div>
@@ -62,7 +62,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V44</button>
+  <button id="enterVr">STARTA VR • V45</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. TRIGGER tar, släpper och kan stjäla bokstäver efter 3 sekunder. A skjuter frysstråle.</div>
@@ -141,12 +141,12 @@ let audioCtx=null;
 const multiplayer={
   clientKey:sessionStorage.getItem('djurClientKey')||crypto.randomUUID(),
   socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
-  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',physicsHostId:'',cubeOwners:{},frozenUntil:0,lastCubeSync:0,cubeTargets:new Map(),cubeSeq:0,freezeLock:null,freezeTimer:null,freezeReadyAt:0,lastCubePacketAt:0
+  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',physicsHostId:'',cubeOwners:{},frozenUntil:0,lastCubeSync:0,cubeTargets:new Map(),cubeSeq:0,freezeLock:null,freezeTimer:null,freezeReadyAt:0,lastCubePacketAt:0,lastHostTimeoutRequestAt:0
 };
 
 
 
-const GAME_VERSION='v44';
+const GAME_VERSION='v45';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,'').slice(0,16)||fallback);
@@ -411,7 +411,17 @@ function handleServerMessage(message){
     applyCubeSnapshot(message.cubes||[],false);
     return;
   }
-  if(message.type==='physics-host'){multiplayer.physicsHostId=message.playerId||'';return;}
+  if(message.type==='physics-host'){
+    multiplayer.physicsHostId=message.playerId||'';
+    multiplayer.lastCubePacketAt=performance.now();
+    return;
+  }
+  if(message.type==='request-cube-sync'){
+    if(multiplayer.physicsHostId===multiplayer.playerId){
+      sendMessage({type:'cube-sync',cubes:cubeWorldSnapshot()});
+    }
+    return;
+  }
   if(message.type==='claim-granted'){localGainCube(message.cubeId,message.hand);return;}
   if(message.type==='claim-denied'){sfx('wrong');return;}
   if(message.type==='cube-owner'){
@@ -707,7 +717,7 @@ function smoothRemoteAvatarsFrame(dtMs=16){
 AFRAME.registerComponent('multiplayer-motion',{
   init(){
     this.poseAccumulator=0;
-    this.heartbeatAccumulator=0;this.cubeAccumulator=0;
+    this.heartbeatAccumulator=0;
   },
   tick(time,dt){
     // A-Frame tick fortsätter även när immersive WebXR pausar window.requestAnimationFrame.
@@ -716,16 +726,46 @@ AFRAME.registerComponent('multiplayer-motion',{
     updateFreezeLock();
     if(!multiplayer.connected||!state)return;
     this.poseAccumulator+=(dt||16);
-    this.heartbeatAccumulator+=(dt||16);this.cubeAccumulator+=(dt||16);    if(multiplayer.physicsHostId===multiplayer.playerId&&this.cubeAccumulator>=200){
-      this.cubeAccumulator=0;
-      sendMessage({type:'cube-sync',cubes:cubeWorldSnapshot()});
-    }
+    this.heartbeatAccumulator+=(dt||16);
     if(this.poseAccumulator>=75){
       this.poseAccumulator=0;
       sendPose(true);
     }else if(this.heartbeatAccumulator>=750){
       this.heartbeatAccumulator=0;
       sendPose(false);
+    }
+  }
+});
+
+AFRAME.registerComponent('shared-cube-network',{
+  init(){
+    this.sendAccumulator=0;
+    this.watchAccumulator=0;
+  },
+  tick(time,dt){
+    if(!multiplayer.connected||!state)return;
+    const step=dt||16;
+    this.sendAccumulator+=step;
+    this.watchAccumulator+=step;
+
+    if(multiplayer.physicsHostId===multiplayer.playerId){
+      // Kör oberoende av spelarens rörelse, frysning och pose-synk.
+      if(this.sendAccumulator>=100){
+        this.sendAccumulator=0;
+        sendMessage({type:'cube-sync',cubes:cubeWorldSnapshot()});
+      }
+      multiplayer.lastCubePacketAt=performance.now();
+      return;
+    }
+
+    if(this.watchAccumulator>=500){
+      this.watchAccumulator=0;
+      const now=performance.now();
+      const silence=now-(multiplayer.lastCubePacketAt||0);
+      if(silence>1500&&now-multiplayer.lastHostTimeoutRequestAt>1500){
+        multiplayer.lastHostTimeoutRequestAt=now;
+        sendMessage({type:'host-timeout'});
+      }
     }
   }
 });
@@ -1309,7 +1349,16 @@ function cubeWorldSnapshot(){
   if(!state)return [];
   return state.cubes.filter(c=>c.dataset.used==='loose').map(c=>{
     const p=c.object3D.position,q=c.object3D.quaternion;
-    return {id:c.dataset.id,p:[p.x,p.y,p.z],q:[q.x,q.y,q.z,q.w]};
+    const phys=state.physics.get(c);
+    const v=phys?.velocity||new THREE.Vector3();
+    const a=phys?.angular||new THREE.Vector3();
+    return {
+      id:c.dataset.id,
+      p:[p.x,p.y,p.z],
+      q:[q.x,q.y,q.z,q.w],
+      v:[v.x,v.y,v.z],
+      a:[a.x,a.y,a.z]
+    };
   });
 }
 function applyCubeSnapshot(items,instant=false){
@@ -1321,7 +1370,9 @@ function applyCubeSnapshot(items,instant=false){
     if(!Array.isArray(item.p)||!Array.isArray(item.q))continue;
     const p=new THREE.Vector3().fromArray(item.p);
     const q=new THREE.Quaternion().fromArray(item.q);
-    multiplayer.cubeTargets.set(item.id,{p,q,receivedAt:now});
+    const v=Array.isArray(item.v)?new THREE.Vector3().fromArray(item.v):new THREE.Vector3();
+    const a=Array.isArray(item.a)?new THREE.Vector3().fromArray(item.a):new THREE.Vector3();
+    multiplayer.cubeTargets.set(item.id,{p,q,v,a,receivedAt:now});
     if(instant){
       cube.object3D.position.copy(p);
       cube.object3D.quaternion.copy(q);
@@ -1331,13 +1382,30 @@ function applyCubeSnapshot(items,instant=false){
 function smoothNetworkCubes(dtMs=16){
   if(!state||multiplayer.physicsHostId===multiplayer.playerId)return;
   const dt=Math.min(50,Math.max(1,dtMs||16));
-  const posAlpha=1-Math.exp(-dt/115);
-  const rotAlpha=1-Math.exp(-dt/95);
+  const sec=dt/1000;
+  const posAlpha=1-Math.exp(-dt/150);
+  const rotAlpha=1-Math.exp(-dt/115);
+  const now=performance.now();
+
   for(const [id,target] of multiplayer.cubeTargets){
     const cube=cubeById(id);
     if(!cube||cube===state.held||cube.dataset.used!=='loose')continue;
-    cube.object3D.position.lerp(target.p,posAlpha);
-    cube.object3D.quaternion.slerp(target.q,rotAlpha);
+
+    // Fortsätt rörelsen mellan nätpaketen i stället för att stå still på senaste punkt.
+    const age=Math.min(.35,Math.max(0,(now-target.receivedAt)/1000));
+    const predicted=target.p.clone().addScaledVector(target.v,age);
+    cube.object3D.position.lerp(predicted,posAlpha);
+
+    if(target.a.lengthSq()>0){
+      const axis=target.a.clone();
+      const speed=axis.length();
+      axis.normalize();
+      const dq=new THREE.Quaternion().setFromAxisAngle(axis,speed*age);
+      const predictedQ=target.q.clone().multiply(dq);
+      cube.object3D.quaternion.slerp(predictedQ,rotAlpha);
+    }else{
+      cube.object3D.quaternion.slerp(target.q,rotAlpha);
+    }
   }
 }
 function requestCubeClaim(cube,hand){
@@ -2051,6 +2119,8 @@ scene.removeAttribute('floating-cube-physics');
 scene.setAttribute('floating-cube-physics','');
 scene.removeAttribute('multiplayer-motion');
 scene.setAttribute('multiplayer-motion','');
+scene.removeAttribute('shared-cube-network');
+scene.setAttribute('shared-cube-network','');
 const rigEntity=document.getElementById('rig');
 rigEntity.removeAttribute('cube-watchdog');
 rigEntity.setAttribute('cube-watchdog','');
