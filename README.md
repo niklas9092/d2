@@ -1,14 +1,19 @@
-# Mystikbyggaren Multiplayer v35
+# Mystikbyggaren Multiplayer v36
 
-Liten korrigering av v34.
+Korrigering av den vita celebration-rutan i v35.
 
-## Fix
-Celebration-texten använde webbläsarens vanliga `requestAnimationFrame`.
-Den kan pausas när ett headset går in i immersive WebXR, så bannern skapades
-men dess rörelse startade inte.
+## Orsak
+A-Frame hann skapa eller återställa sitt standardmaterial på `a-plane`.
+Canvastexturen kunde därför ersättas av en vit standardyta.
 
-I v35 körs bannerns animation i en A-Frame-komponent (`celebration-banner`)
-som uppdateras i WebXR-renderloopen. Därför visas och rör sig texten både på
-dator och inne i VR-headset.
+## Lösning
+Celebration-bannern är nu ett vanligt `a-entity` med:
+- egen `THREE.PlaneGeometry`
+- egen `THREE.MeshBasicMaterial`
+- canvastexturen direkt som materialets `map`
+- avstängd depth test och depth write
+- hög renderOrder
+- explicit texture update
+- korrekt städning av texture, material och geometry
 
-Övrig multiplayerkod från v33/v34 är oförändrad.
+Animationen körs fortfarande i A-Frames WebXR-loop.

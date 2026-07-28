@@ -32,7 +32,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Mystikbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V35</div>
+    <div id="versionBadge">VERSION V36</div>
     <div id="joinInfo">
       Bygg 20 engelska ord tillsammans i ett tema av ljus, mörker och mystik.
       Varje korrekt bokstav sparas direkt och ger 1 poäng. Ett färdigt ord ger ytterligare 10 poäng.
@@ -40,7 +40,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
     </div>
     <input id="playerName" maxlength="12" value="" placeholder="DITT SPELARNAMN" autocomplete="off">
     <input id="roomCode" maxlength="12" value="" placeholder="RUMSKOD" autocomplete="off">
-    <button id="joinButton">ANSLUT TILL RUM • V35</button>
+    <button id="joinButton">ANSLUT TILL RUM • V36</button>
     <div id="joinError"></div>
   </div>
 </div>
@@ -49,7 +49,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V35</button>
+  <button id="enterVr">STARTA VR • V36</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. Använd endast TRIGGER för att ta och släppa kuber.</div>
@@ -137,7 +137,7 @@ const multiplayer={
 
 
 
-const GAME_VERSION='v35';
+const GAME_VERSION='v36';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,12)||fallback);
@@ -202,7 +202,8 @@ let celebrationPlaying=false;
 function makeCelebrationTexture(playerName,word){
   const c=document.createElement('canvas');
   c.width=1800;c.height=360;
-  const x=c.getContext('2d');
+  const x=c.getContext('2d',{alpha:true});
+  x.clearRect(0,0,c.width,c.height);
   const family='"Trebuchet MS","Segoe UI",Verdana,Arial,sans-serif';
   const gradient=x.createLinearGradient(0,0,c.width,0);
   gradient.addColorStop(0,'rgba(8,16,36,0)');
@@ -236,42 +237,55 @@ function showWordCelebration(playerName,word){
 function playNextCelebration(){
   if(celebrationPlaying||!celebrationQueue.length)return;
   celebrationPlaying=true;
+
   const item=celebrationQueue.shift();
   const camera=document.getElementById('camera');
-  if(!camera){celebrationPlaying=false;return;}
+  if(!camera){
+    celebrationPlaying=false;
+    setTimeout(playNextCelebration,180);
+    return;
+  }
 
-  const banner=document.createElement('a-plane');
-  banner.setAttribute('width','5.8');
-  banner.setAttribute('height','1.16');
+  // Använd ett vanligt a-entity med ett eget Three.js-mesh.
+  // Då kan A-Frames standardmaterial inte ersätta canvastexturen med en vit yta.
+  const banner=document.createElement('a-entity');
   banner.setAttribute('position','5.8 .35 -3.4');
-  banner.setAttribute('material','shader:flat;transparent:true;depthTest:false;side:double');
   banner.setAttribute('celebration-banner','duration:5200');
+
+  const texture=makeCelebrationTexture(item.playerName,item.word);
+  texture.needsUpdate=true;
+
+  const geometry=new THREE.PlaneGeometry(5.8,1.16);
+  const material=new THREE.MeshBasicMaterial({
+    map:texture,
+    transparent:true,
+    opacity:1,
+    depthTest:false,
+    depthWrite:false,
+    side:THREE.DoubleSide,
+    toneMapped:false
+  });
+  const mesh=new THREE.Mesh(geometry,material);
+  mesh.renderOrder=9999;
+  banner.setObject3D('mesh',mesh);
+
   banner.dataset.playerName=item.playerName;
   banner.dataset.word=item.word;
   camera.appendChild(banner);
-
-  const texture=makeCelebrationTexture(item.playerName,item.word);
-  const apply=()=>{
-    const mesh=banner.getObject3D('mesh');
-    if(mesh&&mesh.material){
-      mesh.material.map=texture;
-      mesh.material.transparent=true;
-      mesh.material.depthTest=false;
-      mesh.material.needsUpdate=true;
-    }
-  };
-  apply();
-  banner.addEventListener('object3dset',apply,{once:true});
 }
 
 AFRAME.registerComponent('celebration-banner',{
   schema:{duration:{default:5200}},
   init(){
     this.started=performance.now();
+    this.finished=false;
   },
   tick(){
+    if(this.finished)return;
+
     const elapsed=performance.now()-this.started;
     const t=Math.min(1,elapsed/this.data.duration);
+
     let x;
     if(t<.24){
       const u=t/.24;
@@ -282,16 +296,46 @@ AFRAME.registerComponent('celebration-banner',{
       const u=(t-.72)/.28;
       x=-6.2*(u*u);
     }
+
     this.el.object3D.position.x=x;
+
     const scale=t<.12?.86+.14*(t/.12):1;
     this.el.object3D.scale.set(scale,scale,scale);
 
+    // Liten mjuk fade in och fade out.
+    const mesh=this.el.getObject3D('mesh');
+    if(mesh?.material){
+      if(t<.08)mesh.material.opacity=t/.08;
+      else if(t>.90)mesh.material.opacity=Math.max(0,(1-t)/.10);
+      else mesh.material.opacity=1;
+    }
+
     if(t>=1){
+      this.finished=true;
+      this.cleanup();
+    }
+  },
+  cleanup(){
+    const mesh=this.el.getObject3D('mesh');
+    if(mesh){
+      if(mesh.material?.map)mesh.material.map.dispose();
+      if(mesh.material)mesh.material.dispose();
+      if(mesh.geometry)mesh.geometry.dispose();
+    }
+    this.el.removeObject3D('mesh');
+    this.el.remove();
+    celebrationPlaying=false;
+    setTimeout(playNextCelebration,180);
+  },
+  remove(){
+    if(!this.finished){
+      this.finished=true;
       const mesh=this.el.getObject3D('mesh');
-      if(mesh?.material?.map)mesh.material.map.dispose();
-      this.el.remove();
-      celebrationPlaying=false;
-      setTimeout(playNextCelebration,180);
+      if(mesh){
+        if(mesh.material?.map)mesh.material.map.dispose();
+        if(mesh.material)mesh.material.dispose();
+        if(mesh.geometry)mesh.geometry.dispose();
+      }
     }
   }
 });
