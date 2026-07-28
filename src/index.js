@@ -121,15 +121,25 @@ export class GameRoom extends DurableObject{
       const oldLocked=new Set((game.slots||[]).filter(s=>s?.locked===true).map(s=>`${s.wordkey}:${s.index}`));
       const nextSlots=Array.isArray(data.state.slots)?data.state.slots.slice(0,300):game.slots;
       const nextComplete=Array.isArray(data.state.complete)?[...new Set(data.state.complete.filter(v=>typeof v==="string"))]:[];
-      let newLetters=0;for(const slot of nextSlots){
-        if(!slot||slot.locked!==true)continue;const key=`${slot.wordkey}:${slot.index}`;if(!oldLocked.has(key))newLetters++;
-        if(slot.cube&&game.cubeOwners[slot.cube])delete game.cubeOwners[slot.cube];
+      let newLetters=0;
+      const placedCubeIds=new Set();
+      for(const slot of nextSlots){
+        if(!slot)continue;
+        if(slot.filled===true&&slot.cube){
+          placedCubeIds.add(slot.cube);
+          if(game.cubeOwners[slot.cube])delete game.cubeOwners[slot.cube];
+        }
+        if(slot.locked!==true)continue;
+        const key=`${slot.wordkey}:${slot.index}`;
+        if(!oldLocked.has(key))newLetters++;
       }
       const newly=nextComplete.filter(k=>!oldComplete.has(k));
       game.scores[playerId].score+=newLetters+newly.length*10;game.slots=nextSlots;game.complete=nextComplete;
       await this.touch(game,true);
       await this.broadcast({type:"state",players:this.playerObject(),scores:game.scores,state:{slots:game.slots,complete:game.complete}});
-      for(const slot of nextSlots)if(slot?.locked&&slot.cube)await this.broadcast({type:"cube-owner",cubeId:slot.cube,ownerId:""});
+      for(const cubeId of placedCubeIds){
+        await this.broadcast({type:"cube-owner",cubeId,ownerId:"",placed:true});
+      }
       const labels=new Map((Array.isArray(data.state.completedWords)?data.state.completedWords:[]).filter(i=>i&&typeof i.key==="string").map(i=>[i.key,String(i.word||"").slice(0,24)]));
       for(const key of newly)await this.broadcast({type:"celebration",playerId,playerName:name,word:labels.get(key)||"WORD"});
       return;

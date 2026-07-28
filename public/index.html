@@ -34,7 +34,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Ordbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V40</div>
+    <div id="versionBadge">VERSION V41</div>
     <div id="joinInfo">
       Skriv ditt namn och ett gemensamt rumsnamn. Ett rum sparar tema, ord, poäng och ritningar.
       Efter fyra timmar helt utan aktivitet nollställs rummet automatiskt.
@@ -53,7 +53,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
       <option value="body">Kroppen</option>
       <option value="city">Resor & staden</option>
     </select>
-    <button id="joinButton">GÅ IN I RUMMET • V40</button>
+    <button id="joinButton">GÅ IN I RUMMET • V41</button>
     <div id="joinError"></div>
   </div>
 </div>
@@ -62,7 +62,7 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V40</button>
+  <button id="enterVr">STARTA VR • V41</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. TRIGGER tar, släpper och kan stjäla bokstäver efter 3 sekunder. A skjuter frysstråle.</div>
@@ -146,7 +146,7 @@ const multiplayer={
 
 
 
-const GAME_VERSION='v40';
+const GAME_VERSION='v41';
 
 function cleanCode(value,fallback){
   return (String(value||fallback).toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,'').slice(0,16)||fallback);
@@ -414,7 +414,12 @@ function handleServerMessage(message){
       if(state.held===cube)localLoseHeldCube(message.cubeId);
       cube.object3D.visible=false;cube.dataset.used='remote-held';
     }else if(cube&&!message.ownerId&&cube!==state.held){
-      cube.object3D.visible=true;cube.dataset.used='loose';cube.dataset.owner='';
+      cube.dataset.owner='';
+      if(cube.dataset.used!=='placed'){
+        cube.object3D.visible=true;
+        cube.dataset.used='loose';
+        cube.classList.add('interactable');
+      }
     }
     return;
   }
@@ -446,7 +451,7 @@ function applyAuthoritativeState(remoteState){
         const cube=cubeById(slot.dataset.cube);
         if(cube&&cube!==state.held){game.object3D.attach(cube.object3D);cube.object3D.scale.set(1,1,1);setCubeState(cube,'loose');syncTransform(cube);}
       }
-      slot.dataset.filled='false';slot.dataset.locked='false';delete slot.dataset.cube;setSlotVisual(slot,'incomplete');
+      slot.dataset.filled='false';slot.dataset.locked='false';delete slot.dataset.cube;delete slot.dataset.removableAt;setSlotVisual(slot,'incomplete');
     });
     (remoteState.slots||[]).forEach(item=>{
       if(!item.filled||!String(item.wordkey||'').startsWith('0-'))return;
@@ -454,6 +459,7 @@ function applyAuthoritativeState(remoteState){
       const cube=cubeById(item.cube);
       if(!slot||!cube||cube===state.held)return;
       slot.dataset.filled='true';slot.dataset.locked=item.locked?'true':'false';slot.dataset.cube=item.cube;
+      slot.dataset.removableAt=item.locked?'0':String(Date.now()+500);
       setCubeState(cube,'placed');game.object3D.attach(cube.object3D);
       const wp=worldPos(slot),lp=game.object3D.worldToLocal(wp.clone());
       const sq=slot.object3D.getWorldQuaternion(new THREE.Quaternion());
@@ -1110,12 +1116,18 @@ function getWordAttempt(wordKey){
 }
 function pickupPlacedCube(slot,holder){
   if(!slot||slot.dataset.filled!=='true'||slot.dataset.locked==='true'||state.held)return false;
+  const removableAt=Number(slot.dataset.removableAt||0);
+  if(removableAt&&Date.now()<removableAt){
+    sfx('wrong');
+    return false;
+  }
   const cube=cubeById(slot.dataset.cube);
   if(!cube)return false;
 
   // Free the slot first and reset the whole word visual.
   slot.dataset.filled='false';
   delete slot.dataset.cube;
+  delete slot.dataset.removableAt;
   setWordVisual(slot.dataset.wordkey,'incomplete');
 
   // Put cube back into the world with a clean transform/state.
@@ -1291,7 +1303,6 @@ function freeDrop(cube){
 function releaseCube(forceDrop=false){
   const cube=state.held;
   if(!cube)return false;
-  if(multiplayer.connected)sendMessage({type:'release-cube',cubeId:cube.dataset.id});
 
   state.held=null;
   state.heldBy=null;
@@ -1304,6 +1315,7 @@ function releaseCube(forceDrop=false){
   if(openSlot && placeCube(cube,openSlot))return true;
 
   freeDrop(cube);
+  if(multiplayer.connected)sendMessage({type:'release-cube',cubeId:cube.dataset.id});
   return true;
 }
 function returnHome(cube,wrong=false){
@@ -1322,7 +1334,9 @@ function placeCube(cube,slot){
   slot.dataset.filled='true';slot.dataset.cube=cube.dataset.id;
   const correct=cube.dataset.letter===slot.dataset.expected;
   slot.dataset.locked=correct?'true':'false';
+  slot.dataset.removableAt=correct?'0':String(Date.now()+500);
   setCubeState(cube,'placed');
+  cube.object3D.visible=true;
   cube.removeAttribute('animation__return');cube.removeAttribute('animation__celebrate');game.object3D.attach(cube.object3D);
   const wp=worldPos(slot),lp=game.object3D.worldToLocal(wp.clone());
   const sq=slot.object3D.getWorldQuaternion(new THREE.Quaternion());

@@ -1,17 +1,16 @@
-# Ordbyggaren Multiplayer v40
+# Ordbyggaren Multiplayer v41
 
-## Gemensam bokstavsvärld
-Första anslutna spelaren är fysikvärd. Endast värden simulerar lösa bokstäver
-och skickar deras positioner till servern fem gånger per sekund. Alla andra
-headset visar serverns positioner. Vid frånkoppling väljs en ny värd automatiskt.
+## Fixad bokstavsplacering
+I v40 skickades ett `release-cube` redan innan klienten visste om bokstaven
+skulle placeras i en ruta. Ett försenat ägarmeddelande kunde därför komma efter
+den gröna placeringen och göra kuben lös igen.
 
-## Ta och stjäla bokstäver
-Servern äger bokstavsanspråken. Den som tar en kub har tre sekunders skydd.
-Efter det kan en närstående spelare ta över kuben. När kuben låses rätt i ett
-ord upphör ägarskapet omedelbart och bokstaven är färdig.
+I v41:
+- ägarskapet släpps inte före placeringskontrollen
+- en bokstav som placeras i en ruta förblir `placed`
+- ägaruppdateringar får aldrig göra en placerad kub lös
+- servern rensar bärarägarskap för både rätt och fel placerade kuber
+- rätt grön bokstav låses omedelbart och stannar kvar
+- fel röd bokstav sitter fast i exakt 500 ms innan den kan tas bort
 
-## Frysstråle
-Ritfunktionen är borttagen. Tryck A för en blå frysstråle. Träffad spelare
-fryses i ett synligt isblock och kan inte röra sig i tio sekunder.
-
-Övriga teman, sparning, poäng, celebration och fyra timmars rumsrensning finns kvar.
+Övrig kubsynk, stöldmekanik, frysstråle och multiplayer är oförändrade.
