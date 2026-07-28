@@ -17,9 +17,6 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 #joinCard input,#joinCard select{box-sizing:border-box;width:100%;padding:13px 15px;margin:6px 0;border-radius:12px;border:1px solid #63e6ff66;background:#061121;color:#fff;font-size:17px;text-transform:uppercase}
 #joinCard select{box-sizing:border-box;width:100%;padding:13px 15px;margin:6px 0;border-radius:12px;border:1px solid #63e6ff66;background:#061121;color:#fff;font-size:17px}
 .startLabel{display:block;margin-top:10px;color:#8feaff;font-weight:900;font-size:13px;letter-spacing:1px}
-.modeChoice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:13px 0}
-.modeChoice label{background:#061120;border:1px solid #ffffff20;border-radius:12px;padding:12px;color:#fff;font-weight:900}
-.modeChoice input{width:auto!important;margin-right:7px!important}
 #joinCard button{width:100%;margin-top:10px}
 #multiStatus{position:fixed;right:12px;top:12px;z-index:90;min-width:225px;padding:11px 14px;border-radius:14px;background:#061222e8;border:1px solid #5ee7ff55;color:white;font-weight:800;line-height:1.45}
 #multiStatus small{display:block;color:#75eaff;font-weight:700}
@@ -37,20 +34,15 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
 <div id="joinOverlay">
   <div id="joinCard">
     <h1>Ordbyggaren Multiplayer</h1>
-    <div id="versionBadge">VERSION V38</div>
+    <div id="versionBadge">VERSION V39</div>
     <div id="joinInfo">
-      Välj ett av fem fasta rum och ett tema. <strong>Fortsätt spel</strong> hämtar rummets sparade tema, ord, poäng och ritningar.
-      <strong>Starta nytt</strong> tömmer det valda rummet och börjar med temat du väljer.
+      Skriv ditt namn och ett gemensamt rumsnamn. Ett rum sparar tema, ord, poäng och ritningar.
+      Efter fyra timmar helt utan aktivitet nollställs rummet automatiskt.
       Håll A-knappen för att rita gemensamt med lysande bollar.
     </div>
     <input id="playerName" maxlength="12" value="" placeholder="DITT SPELARNAMN" autocomplete="off">
-    <label class="startLabel" for="roomSelect">RUM</label>
-    <select id="roomSelect">
-      <option value="ROOM1">RUM 1</option><option value="ROOM2">RUM 2</option>
-      <option value="ROOM3">RUM 3</option><option value="ROOM4">RUM 4</option>
-      <option value="ROOM5">RUM 5</option>
-    </select>
-    <label class="startLabel" for="themeSelect">TEMA</label>
+    <input id="roomCode" maxlength="16" value="" placeholder="RUMSNAMN" autocomplete="off">
+    <label class="startLabel" for="themeSelect">TEMA FÖR ETT NYTT ELLER NOLLSTÄLLT RUM</label>
     <select id="themeSelect">
       <option value="animals">Djur</option>
       <option value="fruits">Frukter</option>
@@ -61,21 +53,16 @@ button.alt{background:linear-gradient(135deg,#08a9c8,#24d0a6)}
       <option value="body">Kroppen</option>
       <option value="city">Resor & staden</option>
     </select>
-    <div class="modeChoice">
-      <label><input type="radio" name="startMode" value="continue" checked> FORTSÄTT SPEL</label>
-      <label><input type="radio" name="startMode" value="new"> STARTA NYTT</label>
-    </div>
-    <button id="joinButton">GÅ IN I RUMMET • V38</button>
+    <button id="joinButton">GÅ IN I RUMMET • V39</button>
     <div id="joinError"></div>
   </div>
-</div>
 </div>
 <div id="multiStatus">
   <small id="connectionText">Inte ansluten</small>
   <div id="scoreText">Väntar på spelare…</div>
 </div>
 <div id="overlay">
-  <button id="enterVr">STARTA VR • V38</button>
+  <button id="enterVr">STARTA VR • V39</button>
   <button id="resetBtn" class="alt">NYTT SPEL</button>
 </div>
 <div id="tip">Dator: WASD + mus. VR: håll båda GREPP för hopp. TRIGGER tar och släpper kuber. Håll A för att rita med lysande bollar.</div>
@@ -154,15 +141,15 @@ let audioCtx=null;
 const multiplayer={
   clientKey:sessionStorage.getItem('djurClientKey')||crypto.randomUUID(),
   socket:null,connected:false,playerId:'',playerName:'SPELARE',room:'DJUR123',
-  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',startMode:'continue',drawing:false,drawingHand:null,drawBatch:[],lastDrawAt:0
+  scores:{},players:{},avatars:{},applying:false,reconnectTimer:null,intentionalClose:false,lastPoseAt:0,lastPoseSignature:'',hudDirty:true,lastHudRefresh:0,theme:'mystery',drawing:false,drawingHand:null,drawBatch:[],lastDrawAt:0
 };
 
 
 
-const GAME_VERSION='v38';
+const GAME_VERSION='v39';
 
 function cleanCode(value,fallback){
-  return (String(value||fallback).toUpperCase().replace(/[^A-Z0-9_-]/g,'').slice(0,12)||fallback);
+  return (String(value||fallback).toUpperCase().replace(/[^A-ZÅÄÖ0-9_-]/g,'').slice(0,16)||fallback);
 }
 function renderMultiplayerStatus(){
   multiplayer.hudDirty=true;
@@ -183,7 +170,6 @@ function socketUrl(){
   const params=new URLSearchParams({
     name:multiplayer.playerName,
     client:multiplayer.clientKey,
-    mode:multiplayer.startMode,
     theme:multiplayer.theme
   });
   return `${protocol}//${location.host}/ws/${encodeURIComponent(multiplayer.room)}?${params}`;
@@ -558,12 +544,27 @@ function updateRemoteAvatar(id,name,pose){
   a.heldHand=pose.heldHand||'right';
 }
 function placeLimb(cylinder,start,end){
-  const mid=start.clone().add(end).multiplyScalar(.5);
   const dir=end.clone().sub(start);
-  const len=Math.max(.05,dir.length());
+  const rawLen=dir.length();
+  if(!Number.isFinite(rawLen)||rawLen<.04){
+    cylinder.object3D.visible=false;
+    return start.clone();
+  }
+  cylinder.object3D.visible=true;
+  const maxLen=.92;
+  const safeEnd=rawLen>maxLen
+    ?start.clone().add(dir.normalize().multiplyScalar(maxLen))
+    :end.clone();
+  const safeDir=safeEnd.clone().sub(start);
+  const len=Math.max(.05,safeDir.length());
+  const mid=start.clone().add(safeEnd).multiplyScalar(.5);
   cylinder.object3D.position.copy(mid);
   cylinder.object3D.scale.set(1,len/.7,1);
-  cylinder.object3D.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir.normalize());
+  cylinder.object3D.quaternion.setFromUnitVectors(
+    new THREE.Vector3(0,1,0),
+    safeDir.normalize()
+  );
+  return safeEnd;
 }
 function smoothRemoteAvatarsFrame(dtMs=16){
   const dt=Math.min(50,Math.max(1,dtMs||16));
@@ -584,8 +585,10 @@ function smoothRemoteAvatarsFrame(dtMs=16){
 
     const shoulderL=new THREE.Vector3(-.34,-.39,0).applyQuaternion(a.root.object3D.quaternion).add(a.root.object3D.position);
     const shoulderR=new THREE.Vector3(.34,-.39,0).applyQuaternion(a.root.object3D.quaternion).add(a.root.object3D.position);
-    placeLimb(a.armL,shoulderL,a.left.object3D.position);
-    placeLimb(a.armR,shoulderR,a.right.object3D.position);
+    const safeLeft=placeLimb(a.armL,shoulderL,a.left.object3D.position);
+    const safeRight=placeLimb(a.armR,shoulderR,a.right.object3D.position);
+    a.left.object3D.position.copy(safeLeft);
+    a.right.object3D.position.copy(safeRight);
 
     // Dölj bara efter ett verkligt långt avbrott, inte vid små nätverksvariationer.
     const visible=now-a.lastPoseAt<10000;
@@ -1406,63 +1409,6 @@ function stopJetSound(){
   jetNoise=null;
 }
 
-function shootBall(hand){
-  if(!state||state.gameOver)return;
-
-  const rayComp=hand.components?.raycaster;
-  if(!rayComp||!rayComp.raycaster)return;
-
-  const ray=rayComp.raycaster.ray;
-  const origin=ray.origin.clone();
-  const direction=ray.direction.clone().normalize();
-
-  const ball=document.createElement('a-sphere');
-  ball.setAttribute('radius','.075');
-  ball.setAttribute('material',
-    'color:#ffffff;emissive:#59e6ff;emissiveIntensity:3;shader:flat');
-  game.appendChild(ball);
-
-  // Spawn exactly on the visible pointer ray, slightly ahead of the controller.
-  ball.object3D.position.copy(origin.clone().addScaledVector(direction,.28));
-  state.projectiles.push({
-    el:ball,
-    velocity:direction.multiplyScalar(12.5),
-    life:2.8
-  });
-  tone(980,.065,'square',.038);
-}
-function updateProjectiles(sec){
-  if(!state||!state.projectiles||state.paused)return;
-  for(let i=state.projectiles.length-1;i>=0;i--){
-    const shot=state.projectiles[i];
-    shot.life-=sec;
-    shot.el.object3D.position.addScaledVector(shot.velocity,sec);
-
-    let hit=false;
-    for(const cube of state.cubes){
-      if(cube.dataset.used!=='loose')continue;
-      if(worldPos(shot.el).distanceTo(worldPos(cube))<.42){
-        const phys=state.physics.get(cube);
-        if(phys){
-          const hitDirection=shot.velocity.clone().normalize();
-          phys.velocity.add(hitDirection.multiplyScalar(4.0));
-          phys.velocity.setLength(Math.min(5.0,Math.max(1.8,phys.velocity.length())));
-          phys.angular.add(new THREE.Vector3(
-            rand(-2.4,2.4),rand(-3.0,3.0),rand(-2.4,2.4)
-          ));
-        }
-        tone(360,.065,'triangle',.035);
-        hit=true;
-        break;
-      }
-    }
-
-    if(hit||shot.life<=0){
-      shot.el.remove();
-      state.projectiles.splice(i,1);
-    }
-  }
-}
 
 AFRAME.registerComponent('grabber',{
   init(){
@@ -1573,7 +1519,6 @@ function stepZeroGPhysics(time,dtMs){
     }
   }
 
-  updateProjectiles(sec);
   checkHazardTouch();
 }
 let zeroGLast=performance.now();
@@ -1672,7 +1617,14 @@ AFRAME.registerComponent('xr-button-poller',{
     }
 
     if(aPressed&&!this.prevA&&rightHand&&!state.gameOver){
-      shootBall(rightHand);
+      multiplayer.drawing=true;
+      multiplayer.drawingHand=rightHand;
+      emitDrawPoint();
+    }
+    if(!aPressed&&this.prevA){
+      multiplayer.drawing=false;
+      multiplayer.drawingHand=null;
+      flushDrawBatch();
     }
 
     this.prevX=xPressed;
@@ -1780,7 +1732,7 @@ function reset(){
     state.drawingMesh.material.dispose();
   }
   game.innerHTML='';
-  state={held:null,heldBy:null,slots:[],cubes:[],complete:new Set(),start:Date.now(),physics:new Map(),hazards:[],projectiles:[],gameOver:false,paused:false,jetpack:false,verticalVelocity:0,gameOverRoot:null,restartButton:null,hudPlanes:[],lastPlayerPos:null,lastSpeedTime:performance.now(),lastMeasuredSpeed:0,drawPoints:[],drawingMesh:null};
+  state={held:null,heldBy:null,slots:[],cubes:[],complete:new Set(),start:Date.now(),physics:new Map(),hazards:[],gameOver:false,paused:false,jetpack:false,verticalVelocity:0,gameOverRoot:null,restartButton:null,hudPlanes:[],lastPlayerPos:null,lastSpeedTime:performance.now(),lastMeasuredSpeed:0,drawPoints:[],drawingMesh:null};
   createDecor();createCornerHud();initDrawingLayer();
   WORDS.forEach((word,i)=>createStation(word,i,0));
 
@@ -1806,15 +1758,19 @@ rigEntity.setAttribute('cube-watchdog','');
 document.getElementById('joinButton').onclick=()=>{
   const error=document.getElementById('joinError');
   const rawName=document.getElementById('playerName').value.trim();
+  const rawRoom=document.getElementById('roomCode').value.trim();
   error.textContent='';
   if(!rawName){error.textContent='Skriv ett unikt spelarnamn.';return;}
+  if(!rawRoom){error.textContent='Skriv ett rumsnamn.';return;}
   multiplayer.playerName=cleanCode(rawName,'');
-  multiplayer.room=document.getElementById('roomSelect').value;
+  multiplayer.room=cleanCode(rawRoom,'');
   multiplayer.theme=document.getElementById('themeSelect').value;
-  multiplayer.startMode=document.querySelector('input[name="startMode"]:checked').value;
-  if(!multiplayer.playerName){error.textContent='Använd bokstäver och siffror i namnet.';return;}
+  if(!multiplayer.playerName||!multiplayer.room){
+    error.textContent='Använd bokstäver, siffror, bindestreck eller understreck.';
+    return;
+  }
   setTheme(multiplayer.theme);
-  reset(); // bara lokal scen före serverns auktoritativa welcome
+  reset(); // endast lokal scen; serverns sparade rum är auktoritativt
   connectMultiplayer();
 };
 

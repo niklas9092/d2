@@ -1,21 +1,16 @@
-# Ordbyggaren Multiplayer v38
+# Ordbyggaren Multiplayer v39
 
-## Start
-- Fem fasta rum: RUM 1–5.
-- Välj Fortsätt spel eller Starta nytt.
-- Välj tema när ett nytt spel startas.
-- Fortsätt spel använder rummets redan sparade tema och framsteg.
+## Ändrat
+- Alla projektiler och all gammal skjutfunktion är borttagna.
+- A-knappen används endast för gemensam ritning.
+- Spelare skriver åter in ett valfritt rumsnamn.
+- Valet Fortsätt/Nytt är borttaget.
+- Ett befintligt aktivt rum fortsätter automatiskt.
+- Ett nytt eller fyra timmar gammalt rum startar tomt med valt tema.
+- Rummet nollställs automatiskt efter fyra timmar utan aktivitet.
+- Servern använder Durable Object alarms för automatisk nollställning.
+- Spelararmar begränsas till normal längd och händerna klampas till en rimlig räckvidd.
 
-## Åtta teman
-Djur, Frukter, Ljus/mörker/mystik, Natur/väder, Rymden, Hemmet,
-Kroppen och Resor/staden. Varje tema innehåller 20 svenska ord med engelska svar.
-
-## Gemensam ritning
-Håll A-knappen på kontrollen för att rita med lysande bollar.
-Ritpunkterna skickas i små grupper, visas direkt för alla och sparas i rummets
-Durable Object. De senaste 600 punkterna sparas per rum för stabil prestanda.
-Starta nytt spel eller Nytt spel tömmer också ritningen.
-
-## Oförändrat
-Stabil spelarsynk, buren bokstav, direkt sparning av rätt bokstäver,
-1 poäng per rätt bokstav, 10 extra per färdigt ord och celebration-bannern.
+## Kvar
+Åtta teman, gemensamma sparade ritningar, stabil spelarsynk, buren bokstav,
+1 poäng per rätt bokstav, 10 poäng per färdigt ord och celebration-bannern.
